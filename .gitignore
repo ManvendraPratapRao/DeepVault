@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Virtual Environment
+.venv/
+
+# Environment Secrets
+.env
+
+# Databases (regenerated at runtime)
+*.db
+
+# Vector storage (regenerated from source data)
+qdrant_storage/
+
+# Testing / Tooling Caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# IDE
+.vscode/
+.idea/
