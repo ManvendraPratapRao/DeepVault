@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          
+      - name: Set up Python
+        run: uv python install 3.13
+        
+      - name: Install dependencies
+        run: uv sync --all-groups
+        
+      - name: Lint and Format
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+          
+      - name: Type Check
+        run: uv run mypy .
+        
+      - name: Run Tests
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          # We use an empty key for unit tests that don't call the API
+        run: uv run pytest -v --tb=short
