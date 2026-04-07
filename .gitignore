@@ -23,6 +23,10 @@ qdrant_storage/
 .mypy_cache/
 .ruff_cache/
 
+# Large Data Sources (Stored locally, not in Git)
+data/
+synthetic_data_v2/
+
 # IDE
 .vscode/
 .idea/
