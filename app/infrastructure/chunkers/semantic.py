@@ -1,9 +1,10 @@
 import re
 import uuid
+
 import numpy as np
-from typing import List
+
 from app.core.interfaces.chunker import BaseChunker
-from app.core.models.document import Document, Chunk
+from app.core.models.document import Chunk, Document
 from app.infrastructure.logging.structured import logger
 
 
@@ -11,7 +12,7 @@ class SemanticChunker(BaseChunker):
     """
     Groups sentences by embedding similarity. When the cosine similarity
     between consecutive sentences drops below a threshold, a new chunk begins.
-    
+
     This is the "smartest" chunker — it respects meaning boundaries.
     Trade-off: Slower ingestion (requires embedding every sentence).
     """
@@ -37,12 +38,12 @@ class SemanticChunker(BaseChunker):
         return float(dot / norm)
 
     @staticmethod
-    def _split_sentences(text: str) -> List[str]:
+    def _split_sentences(text: str) -> list[str]:
         """Split text into sentences using regex."""
-        sentences = re.split(r'(?<=[.!?])\s+', text)
+        sentences = re.split(r"(?<=[.!?])\s+", text)
         return [s.strip() for s in sentences if s.strip()]
 
-    def chunk(self, document: Document) -> List[Chunk]:
+    def chunk(self, document: Document) -> list[Chunk]:
         """
         1. Split into sentences
         2. Embed each sentence (sync, via the underlying SentenceTransformer model)
@@ -58,7 +59,7 @@ class SemanticChunker(BaseChunker):
                     document_id=document.id,
                     content=document.content,
                     chunk_index=0,
-                    metadata=document.metadata.model_dump()
+                    metadata=document.metadata.model_dump(),
                 )
             ]
 
@@ -66,7 +67,7 @@ class SemanticChunker(BaseChunker):
         embeddings = self.embedder.model.encode(sentences, show_progress_bar=False)
 
         # Group sentences by similarity
-        groups: List[List[str]] = [[sentences[0]]]
+        groups: list[list[str]] = [[sentences[0]]]
 
         for i in range(1, len(sentences)):
             sim = self._cosine_similarity(embeddings[i - 1], embeddings[i])
@@ -79,7 +80,7 @@ class SemanticChunker(BaseChunker):
                 groups[-1].append(sentences[i])
 
         # Merge tiny groups into their neighbors
-        merged_groups: List[List[str]] = []
+        merged_groups: list[list[str]] = []
         for group in groups:
             text = " ".join(group)
             if merged_groups and len(text) < self.min_chunk_size:
@@ -98,12 +99,12 @@ class SemanticChunker(BaseChunker):
                     document_id=document.id,
                     content=chunk_text,
                     chunk_index=idx,
-                    metadata=document.metadata.model_dump()
+                    metadata=document.metadata.model_dump(),
                 )
             )
 
         logger.info(
             f"Semantic chunker created {len(chunks)} chunks from {len(sentences)} sentences",
-            extra={"extra_fields": {"threshold": self.similarity_threshold}}
+            extra={"extra_fields": {"threshold": self.similarity_threshold}},
         )
         return chunks

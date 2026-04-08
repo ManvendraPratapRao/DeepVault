@@ -1,17 +1,18 @@
 import asyncio
 import os
-from app.infrastructure.embedders.bge import BgeEmbedder
-from app.infrastructure.chunkers.fixed import FixedWindowChunker
-from app.infrastructure.stores.sqlite import SqliteDocumentStore
-from app.infrastructure.stores.qdrant import QdrantVectorStore
-from app.infrastructure.llm.groq import GroqLLMClient
-from app.infrastructure.retrievers.vector import VectorRetriever
 
+from app.core.models.query import QueryRequest
+from app.infrastructure.chunkers.fixed import FixedWindowChunker
+from app.infrastructure.embedders.bge import BgeEmbedder
+from app.infrastructure.llm.groq import GroqLLMClient
+from app.infrastructure.logging.structured import logger
+from app.infrastructure.retrievers.vector import VectorRetriever
+from app.infrastructure.stores.qdrant import QdrantVectorStore
+from app.infrastructure.stores.sqlite import SqliteDocumentStore
+from app.services.document import DocumentService
 from app.services.ingestion import IngestionService
 from app.services.query import QueryService
-from app.services.document import DocumentService
-from app.core.models.query import QueryRequest
-from app.infrastructure.logging.structured import logger
+
 
 async def run_verification():
     logger.info("🚀 Starting Service Layer Verification...")
@@ -19,11 +20,11 @@ async def run_verification():
     # 1. Initialize Infrastructure
     embedder = BgeEmbedder()
     chunker = FixedWindowChunker(chunk_size=200, chunk_overlap=20)
-    
+
     # Use separate test databases to avoid messing with your main ones
     test_db = "verification_test.db"
     test_collection = "verification_test"
-    
+
     sqlite_store = SqliteDocumentStore(test_db)
     vstore = QdrantVectorStore(collection_name=test_collection)
     llm = GroqLLMClient()
@@ -46,9 +47,7 @@ async def run_verification():
             "The system is currently being verified for production readiness."
         )
         doc = await ingestion_service.ingest_text(
-            content=sample_content, 
-            source="verification_test.txt",
-            author="AI_Engineer"
+            content=sample_content, source="verification_test.txt", author="AI_Engineer"
         )
         logger.info(f"✅ Ingestion successful. Doc ID: {doc.id}")
 
@@ -63,13 +62,13 @@ async def run_verification():
         logger.info("--- Testing DocumentService ---")
         docs = await document_service.list_documents(limit=10)
         logger.info(f"✅ Document List Count: {len(docs)}")
-        
+
         fetched_doc = await document_service.get_document(doc.id)
         logger.info(f"✅ Fetched Document Source: {fetched_doc.metadata.source}")
 
         logger.info("--- Testing Atomic Deletion ---")
         await document_service.delete_document(doc.id)
-        
+
         # Verify it's gone from SQLite
         remaining_docs = await document_service.list_documents()
         if len(remaining_docs) == 0:
@@ -85,6 +84,7 @@ async def run_verification():
         if os.path.exists(test_db):
             os.remove(test_db)
         logger.info("✅ All Services Verified Successfully!")
+
 
 if __name__ == "__main__":
     asyncio.run(run_verification())

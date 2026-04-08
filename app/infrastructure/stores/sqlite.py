@@ -1,16 +1,17 @@
-import json
 import aiosqlite
-from typing import Optional, List
+
+from app.config import settings
 from app.core.interfaces.document_store import BaseDocumentStore
 from app.core.models.document import Document, DocumentMetadata
-from app.config import settings
 from app.infrastructure.logging.structured import logger
+
 
 class SqliteDocumentStore(BaseDocumentStore):
     """
     Asynchronous SQLite implementation for document metadata storage.
     Uses a persistent connection to avoid the overhead of reconnecting on every operation.
     """
+
     def __init__(self, db_path: str | None = None):
         self.db_path = db_path or settings.SQLITE_DB_PATH
         self._db: aiosqlite.Connection | None = None
@@ -28,7 +29,9 @@ class SqliteDocumentStore(BaseDocumentStore):
             )
         """)
         await self._db.commit()
-        logger.info("SQLite Document Store initialized.", extra={"extra_fields": {"db_path": self.db_path}})
+        logger.info(
+            "SQLite Document Store initialized.", extra={"extra_fields": {"db_path": self.db_path}}
+        )
 
     async def close(self):
         """Gracefully closes the persistent database connection."""
@@ -40,23 +43,20 @@ class SqliteDocumentStore(BaseDocumentStore):
     def _ensure_connected(self):
         """Guard to prevent operations on a closed or uninitialized store."""
         if self._db is None:
-            raise RuntimeError("SqliteDocumentStore is not initialized. Call await store.initialize() first.")
+            raise RuntimeError(
+                "SqliteDocumentStore is not initialized. Call await store.initialize() first."
+            )
 
     async def upsert_document(self, document: Document) -> None:
         """Stores or updates a document using its ID."""
         self._ensure_connected()
         await self._db.execute(
             "INSERT OR REPLACE INTO documents (id, content, hash, metadata) VALUES (?, ?, ?, ?)",
-            (
-                document.id,
-                document.content,
-                document.hash,
-                document.metadata.model_dump_json()
-            )
+            (document.id, document.content, document.hash, document.metadata.model_dump_json()),
         )
         await self._db.commit()
 
-    async def get_document(self, doc_id: str) -> Optional[Document]:
+    async def get_document(self, doc_id: str) -> Document | None:
         """Retrieves a document by its ID."""
         self._ensure_connected()
         async with self._db.execute(
@@ -68,7 +68,7 @@ class SqliteDocumentStore(BaseDocumentStore):
                     id=row[0],
                     content=row[1],
                     hash=row[2],
-                    metadata=DocumentMetadata.model_validate_json(row[3])
+                    metadata=DocumentMetadata.model_validate_json(row[3]),
                 )
         return None
 
@@ -78,12 +78,12 @@ class SqliteDocumentStore(BaseDocumentStore):
         await self._db.execute("DELETE FROM documents WHERE id = ?", (doc_id,))
         await self._db.commit()
 
-    async def list_documents(self, limit: int = 100, offset: int = 0) -> List[Document]:
+    async def list_documents(self, limit: int = 100, offset: int = 0) -> list[Document]:
         """Returns a paginated list of all stored documents."""
         self._ensure_connected()
         async with self._db.execute(
             "SELECT id, content, hash, metadata FROM documents ORDER BY created_at DESC LIMIT ? OFFSET ?",
-            (limit, offset)
+            (limit, offset),
         ) as cursor:
             rows = await cursor.fetchall()
             return [
@@ -91,8 +91,7 @@ class SqliteDocumentStore(BaseDocumentStore):
                     id=row[0],
                     content=row[1],
                     hash=row[2],
-                    metadata=DocumentMetadata.model_validate_json(row[3])
+                    metadata=DocumentMetadata.model_validate_json(row[3]),
                 )
                 for row in rows
             ]
-

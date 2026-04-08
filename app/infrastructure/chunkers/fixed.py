@@ -1,13 +1,15 @@
 import uuid
-from typing import List
+
 from app.core.interfaces.chunker import BaseChunker
-from app.core.models.document import Document, Chunk
+from app.core.models.document import Chunk, Document
+
 
 class FixedWindowChunker(BaseChunker):
     """
     Splits documents into fixed-size character chunks with optional overlap.
     Simple, fast, and very effective for most enterprise RAG use cases.
     """
+
     def __init__(self, chunk_size: int = 500, chunk_overlap: int = 100):
         if chunk_size <= 0:
             raise ValueError(f"chunk_size must be positive, got {chunk_size}")
@@ -21,7 +23,7 @@ class FixedWindowChunker(BaseChunker):
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
 
-    def chunk(self, document: Document) -> List[Chunk]:
+    def chunk(self, document: Document) -> list[Chunk]:
         """
         Implementation of the fixed-window splitting logic.
         """
@@ -38,7 +40,7 @@ class FixedWindowChunker(BaseChunker):
                     document_id=document.id,
                     content=text,
                     chunk_index=0,
-                    metadata=document.metadata.model_dump()
+                    metadata=document.metadata.model_dump(),
                 )
             ]
 
@@ -46,19 +48,19 @@ class FixedWindowChunker(BaseChunker):
             # Calculate end of the window
             end = start + self.chunk_size
             chunk_text = text[start:end]
-            
+
             chunks.append(
                 Chunk(
                     id=str(uuid.uuid4()),
                     document_id=document.id,
                     content=chunk_text,
                     chunk_index=index,
-                    metadata=document.metadata.model_dump()
+                    metadata=document.metadata.model_dump(),
                 )
             )
-            
+
             # Move the start pointer forward, but subtract overlap to keep context
-            start += (self.chunk_size - self.chunk_overlap)
+            start += self.chunk_size - self.chunk_overlap
             index += 1
-            
+
         return chunks

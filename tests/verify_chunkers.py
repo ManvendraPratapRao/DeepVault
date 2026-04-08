@@ -1,17 +1,17 @@
 """
 Verification script: Tests all 4 chunking strategies against the same sample document.
 """
+
 import sys
-import os
 
 # Fix Windows console encoding
 if sys.platform == "win32":
-    sys.stdout.reconfigure(encoding='utf-8')
+    sys.stdout.reconfigure(encoding="utf-8")
 
 from app.core.models.document import Document, DocumentMetadata
 from app.infrastructure.chunkers.fixed import FixedWindowChunker
-from app.infrastructure.chunkers.sliding import SlidingWindowChunker
 from app.infrastructure.chunkers.semantic import SemanticChunker
+from app.infrastructure.chunkers.sliding import SlidingWindowChunker
 from app.infrastructure.chunkers.structure import StructureChunker
 from app.infrastructure.embedders.bge import BgeEmbedder
 
@@ -52,7 +52,13 @@ metadata, BGE-small-en-v1.5 for embeddings, and Groq (Llama-3) for inference.
 Redis will be added in Phase 1B for query and embedding caching.
 """
 
-PLAIN_TEXT_DOC = """DeepVault was built on Day 2 of the project. It uses a modular service layer to separate logic from infrastructure. The system is currently being verified for production readiness. Weather patterns in tropical regions show significant variation during monsoon season. The annual rainfall can exceed 2000mm in coastal areas. Back to engineering: the query pipeline retrieves context, builds prompts, and generates answers using Groq. Testing is done with pytest and asyncio fixtures."""
+PLAIN_TEXT_DOC = (
+    "DeepVault was built on Day 2 of the project. It uses a modular service layer to separate logic "
+    "from infrastructure. The system is currently being verified for production readiness. Weather patterns "
+    "in tropical regions show significant variation during monsoon season. The annual rainfall can "
+    "exceed 2000mm in coastal areas. Back to engineering: the query pipeline retrieves context, builds "
+    "prompts, and generates answers using Groq. Testing is done with pytest and asyncio fixtures."
+)
 
 
 def run_test():
@@ -64,14 +70,14 @@ def run_test():
         id="test-md",
         content=MARKDOWN_DOC,
         metadata=DocumentMetadata(source="architecture.md", author="Engineer"),
-        hash="test-md-hash"
+        hash="test-md-hash",
     )
 
     plain_doc = Document(
         id="test-plain",
         content=PLAIN_TEXT_DOC,
         metadata=DocumentMetadata(source="notes.txt", author="Engineer"),
-        hash="test-plain-hash"
+        hash="test-plain-hash",
     )
 
     # 1. Fixed Window
@@ -80,7 +86,7 @@ def run_test():
     fixed_chunks = fixed.chunk(md_doc)
     print(f"  Chunks created: {len(fixed_chunks)}")
     for c in fixed_chunks:
-        preview = c.content[:70].replace('\n', ' ')
+        preview = c.content[:70].replace("\n", " ")
         print(f"  [{c.chunk_index}] ({len(c.content)} chars) {preview}...")
 
     # 2. Sliding Window
@@ -89,7 +95,7 @@ def run_test():
     sliding_chunks = sliding.chunk(md_doc)
     print(f"  Chunks created: {len(sliding_chunks)}")
     for c in sliding_chunks:
-        preview = c.content[:70].replace('\n', ' ')
+        preview = c.content[:70].replace("\n", " ")
         print(f"  [{c.chunk_index}] ({len(c.content)} chars) {preview}...")
 
     # 3. Semantic Chunker (needs embedder)
@@ -99,7 +105,7 @@ def run_test():
     semantic_chunks = semantic.chunk(plain_doc)
     print(f"  Chunks created: {len(semantic_chunks)}")
     for c in semantic_chunks:
-        preview = c.content[:70].replace('\n', ' ')
+        preview = c.content[:70].replace("\n", " ")
         print(f"  [{c.chunk_index}] ({len(c.content)} chars) {preview}...")
 
     # 4. Structure-based Chunker (on Markdown)
@@ -108,7 +114,7 @@ def run_test():
     struct_chunks = structure.chunk(md_doc)
     print(f"  Chunks created: {len(struct_chunks)}")
     for c in struct_chunks:
-        preview = c.content[:70].replace('\n', ' ')
+        preview = c.content[:70].replace("\n", " ")
         print(f"  [{c.chunk_index}] ({len(c.content)} chars) {preview}...")
 
     # 5. Structure-based Chunker on PLAIN TEXT (should fallback)
@@ -116,7 +122,7 @@ def run_test():
     fallback_chunks = structure.chunk(plain_doc)
     print(f"  Chunks created: {len(fallback_chunks)} (should use fixed-window fallback)")
     for c in fallback_chunks:
-        preview = c.content[:70].replace('\n', ' ')
+        preview = c.content[:70].replace("\n", " ")
         print(f"  [{c.chunk_index}] ({len(c.content)} chars) {preview}...")
 
     # --- Summary ---

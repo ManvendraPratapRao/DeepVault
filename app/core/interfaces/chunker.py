@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod
-from typing import List
-from app.core.models.document import Document, Chunk
+
+from app.core.models.document import Chunk, Document
+
 
 class BaseChunker(ABC):
     @abstractmethod
-    def chunk(self, document: Document) -> List[Chunk]:
+    def chunk(self, document: Document) -> list[Chunk]:
         pass

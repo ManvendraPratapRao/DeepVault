@@ -1,10 +1,12 @@
 import time
+
 from app.core.exceptions import RetrievalError
 from app.core.interfaces.llm_client import BaseLLMClient
 from app.core.interfaces.retriever import BaseRetriever
 from app.core.models.query import QueryRequest, QueryResponse
-from app.prompts.v1 import RAG_SYSTEM_PROMPT, RAG_USER_TEMPLATE
 from app.infrastructure.logging.structured import logger
+from app.prompts.v1 import RAG_SYSTEM_PROMPT, RAG_USER_TEMPLATE
+
 
 class QueryService:
     """
@@ -21,25 +23,22 @@ class QueryService:
         The core RAG loop: Retrieve -> Prompt -> Generate.
         """
         start_time = time.perf_counter()
-        
+
         logger.info(
             f"Processing query: {request.query_text[:50]}...",
-            extra={"extra_fields": {"request_id": request_id}}
+            extra={"extra_fields": {"request_id": request_id}},
         )
 
         # 1. Retrieve relevant chunks from the Vector Store
         # We use top_k=5 as the default for high-quality context
         chunks = await self.retriever.retrieve(
-            query=request.query_text, 
-            top_k=5, 
-            filters=request.filters
+            query=request.query_text, top_k=5, filters=request.filters
         )
 
         # 2. Handle empty retrieval (Production Safety)
         if not chunks:
             raise RetrievalError(
-                "No relevant documents found for this query.", 
-                detail={"query": request.query_text}
+                "No relevant documents found for this query.", detail={"query": request.query_text}
             )
 
         # 3. Build the Context String with citations
@@ -49,21 +48,19 @@ class QueryService:
             source_info = chunk.metadata.get("source", "Unknown Source")
             block = f"[Source: {source_info}, Chunk: {chunk.chunk_index}]\n{chunk.content}"
             context_blocks.append(block)
-        
+
         context_str = "\n\n---\n\n".join(context_blocks)
 
         # 4. Build the Final Prompt
         # RAG_USER_TEMPLATE expects {context} and {question}
         final_user_prompt = RAG_USER_TEMPLATE.format(
-            context=context_str,
-            question=request.query_text
+            context=context_str, question=request.query_text
         )
 
         # 5. Generate the Answer via LLM (Groq)
         # We pass our specialized RAG_SYSTEM_PROMPT to ensure groundedness
         answer = await self.llm_client.generate(
-            prompt=final_user_prompt,
-            system_prompt=RAG_SYSTEM_PROMPT
+            prompt=final_user_prompt, system_prompt=RAG_SYSTEM_PROMPT
         )
 
         # 6. Finalize Performance Metrics
@@ -71,16 +68,15 @@ class QueryService:
 
         logger.info(
             "Query answered successfully",
-            extra={"extra_fields": {
-                "request_id": request_id,
-                "latency_ms": latency_ms,
-                "num_sources": len(chunks)
-            }}
+            extra={
+                "extra_fields": {
+                    "request_id": request_id,
+                    "latency_ms": latency_ms,
+                    "num_sources": len(chunks),
+                }
+            },
         )
 
         return QueryResponse(
-            answer=answer,
-            sources=chunks,
-            latency_ms=latency_ms,
-            request_id=request_id
+            answer=answer, sources=chunks, latency_ms=latency_ms, request_id=request_id
         )

@@ -1,18 +1,20 @@
 from abc import ABC, abstractmethod
-from typing import Any, AsyncGenerator, Dict, List, Optional
+from collections.abc import AsyncGenerator
+
 
 class BaseLLMClient(ABC):
     """
-    Interface for LLM interaction. 
+    Interface for LLM interaction.
     Strictly handles text generation and token management.
     """
+
     @abstractmethod
-    async def generate(self, prompt: str, system_prompt: Optional[str] = None) -> str:
+    async def generate(self, prompt: str, system_prompt: str | None = None) -> str:
         """Generate a complete response."""
         pass
 
     @abstractmethod
-    async def stream(self, prompt: str, system_prompt: Optional[str] = None) -> AsyncGenerator[str, None]:
+    async def stream(self, prompt: str, system_prompt: str | None = None) -> AsyncGenerator[str]:
         """Stream a response token by token."""
         pass
 

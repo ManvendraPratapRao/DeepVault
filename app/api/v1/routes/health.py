@@ -1,10 +1,13 @@
 import time
+
 from fastapi import APIRouter
-from app.config import settings
+
 from app.api.schemas.responses import HealthResponse
+from app.config import settings
 
 router = APIRouter()
 start_time = time.time()
+
 
 @router.get("", response_model=HealthResponse)
 async def health_check():
@@ -13,9 +16,5 @@ async def health_check():
         status="ok",
         version=settings.VERSION,
         uptime_seconds=time.time() - start_time,
-        components={
-            "sqlite": "connected",
-            "qdrant": "connected",
-            "groq": "ready"
-        }
+        components={"sqlite": "connected", "qdrant": "connected", "groq": "ready"},
     )
