@@ -1,0 +1,388 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.5, pytest-9.0.2, pluggy-1.6.0
+rootdir: D:\ML PROJECTS\data set for ENTERPRISE LEVEL RAG PROJECT\deepvault
+configfile: pyproject.toml
+plugins: anyio-4.13.0, asyncio-1.3.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 8 items
+
+tests\unit\test_query_service.py F..                                     [ 37%]
+tests\integration\test_api.py .FFFF                                      [100%]
+
+================================== FAILURES ===================================
+__________________________ test_ask_returns_response __________________________
+tests\unit\test_query_service.py:25: in test_ask_returns_response
+    mock_retriever.retrieve.assert_awaited_once_with("What is DeepVault?", top_k=3, filters=None)
+C:\Users\manve\AppData\Roaming\uv\python\cpython-3.13.5-windows-x86_64-none\Lib\unittest\mock.py:2393: in assert_awaited_once_with
+    return self.assert_awaited_with(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\manve\AppData\Roaming\uv\python\cpython-3.13.5-windows-x86_64-none\Lib\unittest\mock.py:2382: in assert_awaited_with
+    raise AssertionError(_error_message()) from cause
+E   AssertionError: expected await not found.
+E   Expected: retrieve('What is DeepVault?', top_k=3, filters=None)
+E     Actual: retrieve(query='What is DeepVault?', top_k=5, filters=None)
+---------------------------- Captured stdout call -----------------------------
+{"timestamp": "2026-04-08T07:38:49.457695+00:00", "level": "INFO", "message": "Processing query: What is DeepVault?...", "module": "query", "function": "ask", "request_id": "internal"}
+{"timestamp": "2026-04-08T07:38:49.458086+00:00", "level": "INFO", "message": "Query answered successfully", "module": "query", "function": "ask", "request_id": "internal", "latency_ms": 0.4200999974273145, "num_sources": 3}
+------------------------------ Captured log call ------------------------------
+INFO     root:query.py:25 Processing query: What is DeepVault?...
+INFO     root:query.py:72 Query answered successfully
+____________________________ test_ingest_and_query ____________________________
+tests\integration\test_api.py:86: in test_ingest_and_query
+    resp_ingest = await test_client.post("/api/v1/documents/text", json={
+.venv\Lib\site-packages\httpx\_client.py:1859: in post
+    return await self.request(
+.venv\Lib\site-packages\httpx\_client.py:1540: in request
+    return await self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\httpx\_client.py:1629: in send
+    response = await self._send_handling_auth(
+.venv\Lib\site-packages\httpx\_client.py:1657: in _send_handling_auth
+    response = await self._send_handling_redirects(
+.venv\Lib\site-packages\httpx\_client.py:1694: in _send_handling_redirects
+    response = await self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\httpx\_client.py:1730: in _send_single_request
+    response = await transport.handle_async_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\httpx\_transports\asgi.py:170: in handle_async_request
+    await self.app(scope, receive, send)
+.venv\Lib\site-packages\fastapi\applications.py:1163: in __call__
+    await super().__call__(scope, receive, send)
+.venv\Lib\site-packages\starlette\applications.py:90: in __call__
+    await self.middleware_stack(scope, receive, send)
+.venv\Lib\site-packages\starlette\middleware\errors.py:186: in __call__
+    raise exc
+.venv\Lib\site-packages\starlette\middleware\errors.py:164: in __call__
+    await self.app(scope, receive, _send)
+.venv\Lib\site-packages\starlette\middleware\base.py:191: in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+                                   ^^^^^^^^^^^^^^^^^^^^
+C:\Users\manve\AppData\Roaming\uv\python\cpython-3.13.5-windows-x86_64-none\Lib\contextlib.py:162: in __exit__
+    self.gen.throw(value)
+.venv\Lib\site-packages\starlette\_utils.py:87: in collapse_excgroups
+    raise exc
+.venv\Lib\site-packages\starlette\middleware\base.py:193: in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\api\middleware\logging.py:58: in dispatch
+    raise e
+app\api\middleware\logging.py:24: in dispatch
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\starlette\middleware\base.py:168: in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+.venv\Lib\site-packages\starlette\middleware\base.py:144: in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+.venv\Lib\site-packages\starlette\middleware\exceptions.py:63: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+.venv\Lib\site-packages\starlette\_exception_handler.py:53: in wrapped_app
+    raise exc
+.venv\Lib\site-packages\starlette\_exception_handler.py:42: in wrapped_app
+    await app(scope, receive, sender)
+.venv\Lib\site-packages\fastapi\middleware\asyncexitstack.py:18: in __call__
+    await self.app(scope, receive, send)
+.venv\Lib\site-packages\starlette\routing.py:660: in __call__
+    await self.middleware_stack(scope, receive, send)
+.venv\Lib\site-packages\starlette\routing.py:680: in app
+    await route.handle(scope, receive, send)
+.venv\Lib\site-packages\starlette\routing.py:448: in handle
+    await self.app(scope, receive, send)
+.venv\Lib\site-packages\starlette\routing.py:660: in __call__
+    await self.middleware_stack(scope, receive, send)
+.venv\Lib\site-packages\starlette\routing.py:680: in app
+    await route.handle(scope, receive, send)
+.venv\Lib\site-packages\starlette\routing.py:276: in handle
+    await self.app(scope, receive, send)
+.venv\Lib\site-packages\fastapi\routing.py:134: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+.venv\Lib\site-packages\starlette\_exception_handler.py:53: in wrapped_app
+    raise exc
+.venv\Lib\site-packages\starlette\_exception_handler.py:42: in wrapped_app
+    await app(scope, receive, sender)
+.venv\Lib\site-packages\fastapi\routing.py:120: in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\fastapi\routing.py:674: in app
+    raw_response = await run_endpoint_function(
+.venv\Lib\site-packages\fastapi\routing.py:328: in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\api\v1\routes\ingest.py:20: in ingest_text
+    doc = await service.ingest_text(
+app\services\ingestion.py:50: in ingest_text
+    existing_doc = await self.doc_store.get_document(doc_hash)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\infrastructure\stores\sqlite.py:61: in get_document
+    self._ensure_connected()
+app\infrastructure\stores\sqlite.py:43: in _ensure_connected
+    raise RuntimeError("SqliteDocumentStore is not initialized. Call await store.initialize() first.")
+E   RuntimeError: SqliteDocumentStore is not initialized. Call await store.initialize() first.
+---------------------------- Captured stdout call -----------------------------
+{"timestamp": "2026-04-08T07:38:49.963587+00:00", "level": "INFO", "message": "Initializing BgeEmbedder with model: BAAI/bge-small-en-v1.5", "module": "bge", "function": "__init__"}
+{"timestamp": "2026-04-08T07:38:49.964679+00:00", "level": "INFO", "message": "Use pytorch device_name: cpu", "module": "SentenceTransformer", "function": "__init__"}
+{"timestamp": "2026-04-08T07:38:49.964792+00:00", "level": "INFO", "message": "Load pretrained SentenceTransformer: BAAI/bge-small-en-v1.5", "module": "SentenceTransformer", "function": "__init__"}
+{"timestamp": "2026-04-08T07:38:50.622688+00:00", "level": "INFO", "message": "HTTP Request: HEAD https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/modules.json \"HTTP/1.1 307 Temporary Redirect\"", "module": "_client", "function": "_send_single_request"}
+{"timestamp": "2026-04-08T07:38:50.648452+00:00", "level": "INFO", "message": "HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/BAAI/bge-small-en-v1.5/5c38ec7c405ec4b44b94cc5a9bb96e735b38267a/modules.json \"HTTP/1.1 200 OK\"", "module": "_client", "function": "_send_single_request"}
+{"timestamp": "2026-04-08T07:39:00.996014+00:00", "level": "INFO", "message": "HTTP Request: HEAD https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/config_sentence_transformers.json \"HTTP/1.1 307 Temporary Redirect\"", "module": "_client", "function": "_send_single_request"}
+{"timestamp": "2026-04-08T07:39:01.023173+00:00", "level": "INFO", "message": "HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/BAAI/bge-small-en-v1.5/5c38ec7c405ec4b44b94cc5a9bb96e735b38267a/config_sentence_transformers.json \"HTTP/1.1 200 OK\"", "module": "_client", "function": "_send_single_request"}
+{"timestamp": "2026-04-08T07:39:01.279998+00:00", "level": "INFO", "message": "HTTP Request: HEAD https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/README.md \"HTTP/1.1 307 Temporary Redirect\"", "module": "_client", "function": "_send_single_request"}
+{"timestamp": "2026-04-08T07:39:01.308270+00:00", "level": "INFO", "message": "HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/BAAI/bge-small-en-v1.5/5c38ec7c405ec4b44b94cc5a9bb96e735b38267a/README.md \"HTTP/1.1 200 OK\"", "module": "_client", "function": "_send_single_request"}
+{"timestamp": "2026-04-08T07:39:01.850593+00:00", "level": "INFO", "message": "HTTP Request: HEAD https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/modules.json \"HTTP/1.1 307 Temporary Redirect\"", "module": "_client", "function": "_send_single_request"}
+{"timestamp": "2026-04-08T07:39:01.889392+00:00", "level": "INFO", "message": "HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/BAAI/bge-small-en-v1.5/5c38ec7c405ec4b44b94cc5a9bb96e735b38267a/modules.json \"HTTP/1.1 200 OK\"", "module": "_client", "function": "_send_single_request"}
+{"timestamp": "2026-04-08T07:39:02.174942+00:00", "level": "INFO", "message": "HTTP Request: HEAD https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/sentence_bert_config.json \"HTTP/1.1 307 Temporary Redirect\"", "module": "_client", "function": "_send_single_request"}
+{"timestamp": "2026-04-08T07:39:02.220478+00:00", "level": "INFO", "message": "HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/BAAI/bge-small-en-v1.5/5c38ec7c405ec4b44b94cc5a9bb96e735b38267a/sentence_bert_config.json \"HTTP/1.1 200 OK\"", "module": "_client", "function": "_send_single_request"}
+{"timestamp": "2026-04-08T07:39:02.476608+00:00", "level": "INFO", "message": "HTTP Request: HEAD https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/adapter_config.json \"HTTP/1.1 404 Not Found\"", "module": "_client", "function": "_send_single_request"}
+{"timestamp": "2026-04-08T07:39:13.142175+00:00", "level": "INFO", "message": "HTTP Request: HEAD https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/config.json \"HTTP/1.1 307 Temporary Redirect\"", "module": "_client", "function": "_send_single_request"}
+{"timestamp": "2026-04-08T07:39:13.174082+00:00", "level": "INFO", "message": "HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/BAAI/bge-small-en-v1.5/5c38ec7c405ec4b44b94cc5a9bb96e735b38267a/config.json \"HTTP/1.1 200 OK\"", "module": "_client", "function": "_send_single_request"}
+{"timestamp": "2026-04-08T07:39:23.562749+00:00", "level": "INFO", "message": "HTTP Request: GET https://huggingface.co/api/models/BAAI/bge-small-en-v1.5/tree/main/additional_chat_templates?recursive=false&expand=false \"HTTP/1.1 404 Not Found\"", "module": "_client", "function": "_send_single_request"}
+{"timestamp": "2026-04-08T07:39:23.831499+00:00", "level": "INFO", "message": "HTTP Request: GET https://huggingface.co/api/models/BAAI/bge-small-en-v1.5/tree/main?recursive=true&expand=false \"HTTP/1.1 200 OK\"", "module": "_client", "function": "_send_single_request"}
+{"timestamp": "2026-04-08T07:39:34.662111+00:00", "level": "INFO", "message": "HTTP Request: GET https://huggingface.co/api/models/BAAI/bge-small-en-v1.5 \"HTTP/1.1 200 OK\"", "module": "_client", "function": "_send_single_request"}
+{"timestamp": "2026-04-08T07:39:34.720386+00:00", "level": "ERROR", "message": "Unhandled error: SqliteDocumentStore is not initialized. Call await store.initialize() first.", "module": "logging", "function": "dispatch", "request_id": "c6e388c5-f13d-4659-ac67-c55aabb40135", "latency_ms": 44757.697200009716}
+---------------------------- Captured stderr call -----------------------------
+
+Loading weights:   0%|          | 0/199 [00:00<?, ?it/s]
+Loading weights:  81%|â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ  | 161/199 [00:00<00:00, 1579.50it/s]
+Loading weights: 100%|â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ| 199/199 [00:00<00:00, 1639.73it/s]
+[1mBertModel LOAD REPORT[0m from: BAAI/bge-small-en-v1.5
+Key                     | Status     |  | 
+------------------------+------------+--+-
+embeddings.position_ids | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+------------------------------ Captured log call ------------------------------
+INFO     root:bge.py:13 Initializing BgeEmbedder with model: BAAI/bge-small-en-v1.5
+INFO     sentence_transformers.SentenceTransformer:SentenceTransformer.py:219 Use pytorch device_name: cpu
+INFO     sentence_transformers.SentenceTransformer:SentenceTransformer.py:227 Load pretrained SentenceTransformer: BAAI/bge-small-en-v1.5
+INFO     httpx:_client.py:1025 HTTP Request: HEAD https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/modules.json "HTTP/1.1 307 Temporary Redirect"
+INFO     httpx:_client.py:1025 HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/BAAI/bge-small-en-v1.5/5c38ec7c405ec4b44b94cc5a9bb96e735b38267a/modules.json "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1025 HTTP Request: HEAD https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/config_sentence_transformers.json "HTTP/1.1 307 Temporary Redirect"
+INFO     httpx:_client.py:1025 HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/BAAI/bge-small-en-v1.5/5c38ec7c405ec4b44b94cc5a9bb96e735b38267a/config_sentence_transformers.json "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1025 HTTP Request: HEAD https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/README.md "HTTP/1.1 307 Temporary Redirect"
+INFO     httpx:_client.py:1025 HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/BAAI/bge-small-en-v1.5/5c38ec7c405ec4b44b94cc5a9bb96e735b38267a/README.md "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1025 HTTP Request: HEAD https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/modules.json "HTTP/1.1 307 Temporary Redirect"
+INFO     httpx:_client.py:1025 HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/BAAI/bge-small-en-v1.5/5c38ec7c405ec4b44b94cc5a9bb96e735b38267a/modules.json "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1025 HTTP Request: HEAD https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/sentence_bert_config.json "HTTP/1.1 307 Temporary Redirect"
+INFO     httpx:_client.py:1025 HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/BAAI/bge-small-en-v1.5/5c38ec7c405ec4b44b94cc5a9bb96e735b38267a/sentence_bert_config.json "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1025 HTTP Request: HEAD https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/adapter_config.json "HTTP/1.1 404 Not Found"
+INFO     httpx:_client.py:1025 HTTP Request: HEAD https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+INFO     httpx:_client.py:1025 HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/BAAI/bge-small-en-v1.5/5c38ec7c405ec4b44b94cc5a9bb96e735b38267a/config.json "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1025 HTTP Request: GET https://huggingface.co/api/models/BAAI/bge-small-en-v1.5/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
+INFO     httpx:_client.py:1025 HTTP Request: GET https://huggingface.co/api/models/BAAI/bge-small-en-v1.5/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1025 HTTP Request: GET https://huggingface.co/api/models/BAAI/bge-small-en-v1.5 "HTTP/1.1 200 OK"
+ERROR    root:logging.py:49 Unhandled error: SqliteDocumentStore is not initialized. Call await store.initialize() first.
+______________________ test_ingest_duplicate_idempotent _______________________
+tests\integration\test_api.py:110: in test_ingest_duplicate_idempotent
+    resp = await test_client.post("/api/v1/documents/text", json={
+.venv\Lib\site-packages\httpx\_client.py:1859: in post
+    return await self.request(
+.venv\Lib\site-packages\httpx\_client.py:1540: in request
+    return await self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\httpx\_client.py:1629: in send
+    response = await self._send_handling_auth(
+.venv\Lib\site-packages\httpx\_client.py:1657: in _send_handling_auth
+    response = await self._send_handling_redirects(
+.venv\Lib\site-packages\httpx\_client.py:1694: in _send_handling_redirects
+    response = await self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\httpx\_client.py:1730: in _send_single_request
+    response = await transport.handle_async_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\httpx\_transports\asgi.py:170: in handle_async_request
+    await self.app(scope, receive, send)
+.venv\Lib\site-packages\fastapi\applications.py:1163: in __call__
+    await super().__call__(scope, receive, send)
+.venv\Lib\site-packages\starlette\applications.py:90: in __call__
+    await self.middleware_stack(scope, receive, send)
+.venv\Lib\site-packages\starlette\middleware\errors.py:186: in __call__
+    raise exc
+.venv\Lib\site-packages\starlette\middleware\errors.py:164: in __call__
+    await self.app(scope, receive, _send)
+.venv\Lib\site-packages\starlette\middleware\base.py:191: in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+                                   ^^^^^^^^^^^^^^^^^^^^
+C:\Users\manve\AppData\Roaming\uv\python\cpython-3.13.5-windows-x86_64-none\Lib\contextlib.py:162: in __exit__
+    self.gen.throw(value)
+.venv\Lib\site-packages\starlette\_utils.py:87: in collapse_excgroups
+    raise exc
+.venv\Lib\site-packages\starlette\middleware\base.py:193: in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\api\middleware\logging.py:58: in dispatch
+    raise e
+app\api\middleware\logging.py:24: in dispatch
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\starlette\middleware\base.py:168: in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+.venv\Lib\site-packages\starlette\middleware\base.py:144: in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+.venv\Lib\site-packages\starlette\middleware\exceptions.py:63: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+.venv\Lib\site-packages\starlette\_exception_handler.py:53: in wrapped_app
+    raise exc
+.venv\Lib\site-packages\starlette\_exception_handler.py:42: in wrapped_app
+    await app(scope, receive, sender)
+.venv\Lib\site-packages\fastapi\middleware\asyncexitstack.py:18: in __call__
+    await self.app(scope, receive, send)
+.venv\Lib\site-packages\starlette\routing.py:660: in __call__
+    await self.middleware_stack(scope, receive, send)
+.venv\Lib\site-packages\starlette\routing.py:680: in app
+    await route.handle(scope, receive, send)
+.venv\Lib\site-packages\starlette\routing.py:448: in handle
+    await self.app(scope, receive, send)
+.venv\Lib\site-packages\starlette\routing.py:660: in __call__
+    await self.middleware_stack(scope, receive, send)
+.venv\Lib\site-packages\starlette\routing.py:680: in app
+    await route.handle(scope, receive, send)
+.venv\Lib\site-packages\starlette\routing.py:276: in handle
+    await self.app(scope, receive, send)
+.venv\Lib\site-packages\fastapi\routing.py:134: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+.venv\Lib\site-packages\starlette\_exception_handler.py:53: in wrapped_app
+    raise exc
+.venv\Lib\site-packages\starlette\_exception_handler.py:42: in wrapped_app
+    await app(scope, receive, sender)
+.venv\Lib\site-packages\fastapi\routing.py:120: in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\fastapi\routing.py:674: in app
+    raw_response = await run_endpoint_function(
+.venv\Lib\site-packages\fastapi\routing.py:328: in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\api\v1\routes\ingest.py:20: in ingest_text
+    doc = await service.ingest_text(
+app\services\ingestion.py:50: in ingest_text
+    existing_doc = await self.doc_store.get_document(doc_hash)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\infrastructure\stores\sqlite.py:61: in get_document
+    self._ensure_connected()
+app\infrastructure\stores\sqlite.py:43: in _ensure_connected
+    raise RuntimeError("SqliteDocumentStore is not initialized. Call await store.initialize() first.")
+E   RuntimeError: SqliteDocumentStore is not initialized. Call await store.initialize() first.
+---------------------------- Captured stdout call -----------------------------
+{"timestamp": "2026-04-08T07:39:35.147274+00:00", "level": "ERROR", "message": "Unhandled error: SqliteDocumentStore is not initialized. Call await store.initialize() first.", "module": "logging", "function": "dispatch", "request_id": "94b59a68-3222-43d1-b43e-c9c7773f3e84", "latency_ms": 0.7216999947559088}
+------------------------------ Captured log call ------------------------------
+ERROR    root:logging.py:49 Unhandled error: SqliteDocumentStore is not initialized. Call await store.initialize() first.
+____________________________ test_delete_document _____________________________
+tests\integration\test_api.py:121: in test_delete_document
+    assert resp.status_code == 204
+E   assert 500 == 204
+E    +  where 500 = <Response [500 Internal Server Error]>.status_code
+---------------------------- Captured stdout call -----------------------------
+{"timestamp": "2026-04-08T07:39:35.472434+00:00", "level": "INFO", "message": "Initiating full deletion for document: doc-123", "module": "document", "function": "delete_document"}
+{"timestamp": "2026-04-08T07:39:35.472735+00:00", "level": "INFO", "message": "Deleted all points for document: doc-123", "module": "qdrant", "function": "delete_by_doc_id"}
+{"timestamp": "2026-04-08T07:39:35.473013+00:00", "level": "INFO", "message": "DELETE /api/v1/documents/doc-123 -> 500 in 1.14ms", "module": "logging", "function": "dispatch", "request_id": "12d7bfe1-08f9-4438-92f8-51365d0af3ba", "method": "DELETE", "path": "/api/v1/documents/doc-123", "status_code": 500, "latency_ms": 1.1430000013206154}
+{"timestamp": "2026-04-08T07:39:35.473378+00:00", "level": "INFO", "message": "HTTP Request: DELETE http://test/api/v1/documents/doc-123 \"HTTP/1.1 500 Internal Server Error\"", "module": "_client", "function": "_send_single_request"}
+------------------------------ Captured log call ------------------------------
+INFO     root:document.py:38 Initiating full deletion for document: doc-123
+INFO     root:qdrant.py:106 Deleted all points for document: doc-123
+INFO     root:logging.py:30 DELETE /api/v1/documents/doc-123 -> 500 in 1.14ms
+INFO     httpx:_client.py:1740 HTTP Request: DELETE http://test/api/v1/documents/doc-123 "HTTP/1.1 500 Internal Server Error"
+_______________________ test_list_documents_pagination ________________________
+tests\integration\test_api.py:126: in test_list_documents_pagination
+    resp = await test_client.get("/api/v1/documents?limit=2&offset=0")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\httpx\_client.py:1768: in get
+    return await self.request(
+.venv\Lib\site-packages\httpx\_client.py:1540: in request
+    return await self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\httpx\_client.py:1629: in send
+    response = await self._send_handling_auth(
+.venv\Lib\site-packages\httpx\_client.py:1657: in _send_handling_auth
+    response = await self._send_handling_redirects(
+.venv\Lib\site-packages\httpx\_client.py:1694: in _send_handling_redirects
+    response = await self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\httpx\_client.py:1730: in _send_single_request
+    response = await transport.handle_async_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\httpx\_transports\asgi.py:170: in handle_async_request
+    await self.app(scope, receive, send)
+.venv\Lib\site-packages\fastapi\applications.py:1163: in __call__
+    await super().__call__(scope, receive, send)
+.venv\Lib\site-packages\starlette\applications.py:90: in __call__
+    await self.middleware_stack(scope, receive, send)
+.venv\Lib\site-packages\starlette\middleware\errors.py:186: in __call__
+    raise exc
+.venv\Lib\site-packages\starlette\middleware\errors.py:164: in __call__
+    await self.app(scope, receive, _send)
+.venv\Lib\site-packages\starlette\middleware\base.py:191: in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+                                   ^^^^^^^^^^^^^^^^^^^^
+C:\Users\manve\AppData\Roaming\uv\python\cpython-3.13.5-windows-x86_64-none\Lib\contextlib.py:162: in __exit__
+    self.gen.throw(value)
+.venv\Lib\site-packages\starlette\_utils.py:87: in collapse_excgroups
+    raise exc
+.venv\Lib\site-packages\starlette\middleware\base.py:193: in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\api\middleware\logging.py:58: in dispatch
+    raise e
+app\api\middleware\logging.py:24: in dispatch
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\starlette\middleware\base.py:168: in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+.venv\Lib\site-packages\starlette\middleware\base.py:144: in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+.venv\Lib\site-packages\starlette\middleware\exceptions.py:63: in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+.venv\Lib\site-packages\starlette\_exception_handler.py:53: in wrapped_app
+    raise exc
+.venv\Lib\site-packages\starlette\_exception_handler.py:42: in wrapped_app
+    await app(scope, receive, sender)
+.venv\Lib\site-packages\fastapi\middleware\asyncexitstack.py:18: in __call__
+    await self.app(scope, receive, send)
+.venv\Lib\site-packages\starlette\routing.py:660: in __call__
+    await self.middleware_stack(scope, receive, send)
+.venv\Lib\site-packages\starlette\routing.py:680: in app
+    await route.handle(scope, receive, send)
+.venv\Lib\site-packages\starlette\routing.py:448: in handle
+    await self.app(scope, receive, send)
+.venv\Lib\site-packages\starlette\routing.py:660: in __call__
+    await self.middleware_stack(scope, receive, send)
+.venv\Lib\site-packages\starlette\routing.py:680: in app
+    await route.handle(scope, receive, send)
+.venv\Lib\site-packages\starlette\routing.py:276: in handle
+    await self.app(scope, receive, send)
+.venv\Lib\site-packages\fastapi\routing.py:134: in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+.venv\Lib\site-packages\starlette\_exception_handler.py:53: in wrapped_app
+    raise exc
+.venv\Lib\site-packages\starlette\_exception_handler.py:42: in wrapped_app
+    await app(scope, receive, sender)
+.venv\Lib\site-packages\fastapi\routing.py:120: in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+.venv\Lib\site-packages\fastapi\routing.py:674: in app
+    raw_response = await run_endpoint_function(
+.venv\Lib\site-packages\fastapi\routing.py:328: in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\api\v1\routes\documents.py:16: in list_documents
+    docs = await service.list_documents(limit=limit, offset=offset)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\services\document.py:32: in list_documents
+    return await self.doc_store.list_documents(limit=limit, offset=offset)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\infrastructure\stores\sqlite.py:83: in list_documents
+    self._ensure_connected()
+app\infrastructure\stores\sqlite.py:43: in _ensure_connected
+    raise RuntimeError("SqliteDocumentStore is not initialized. Call await store.initialize() first.")
+E   RuntimeError: SqliteDocumentStore is not initialized. Call await store.initialize() first.
+---------------------------- Captured stdout call -----------------------------
+{"timestamp": "2026-04-08T07:39:35.593396+00:00", "level": "ERROR", "message": "Unhandled error: SqliteDocumentStore is not initialized. Call await store.initialize() first.", "module": "logging", "function": "dispatch", "request_id": "ad0dbaed-357f-4136-abab-5ff6430f8f03", "latency_ms": 1.2682999949902296}
+------------------------------ Captured log call ------------------------------
+ERROR    root:logging.py:49 Unhandled error: SqliteDocumentStore is not initialized. Call await store.initialize() first.
+=========================== short test summary info ===========================
+FAILED tests/unit/test_query_service.py::test_ask_returns_response - Assertio...
+FAILED tests/integration/test_api.py::test_ingest_and_query - RuntimeError: S...
+FAILED tests/integration/test_api.py::test_ingest_duplicate_idempotent - Runt...
+FAILED tests/integration/test_api.py::test_delete_document - assert 500 == 204
+FAILED tests/integration/test_api.py::test_list_documents_pagination - Runtim...
+======================== 5 failed, 3 passed in 54.37s =========================

@@ -21,7 +21,7 @@ async def list_documents(
             source=d.metadata.source,
             author=d.metadata.author,
             created_at=str(d.metadata.created_at),
-            version=d.version
+            version=d.metadata.version
         ) for d in docs
     ]
     

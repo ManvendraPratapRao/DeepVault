@@ -1,0 +1,75 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.5, pytest-9.0.2, pluggy-1.6.0
+rootdir: D:\ML PROJECTS\data set for ENTERPRISE LEVEL RAG PROJECT\deepvault
+configfile: pyproject.toml
+plugins: anyio-4.13.0, asyncio-1.3.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 12 items
+
+tests\unit\test_chunkers.py .....FF                                      [ 58%]
+tests\unit\test_ingestion_service.py F.F.F                               [100%]
+
+================================== FAILURES ===================================
+____________________________ test_semantic_chunker ____________________________
+tests\unit\test_chunkers.py:74: in test_semantic_chunker
+    chunks = chunker.chunk(doc)
+             ^^^^^^^^^^^^^^^^^^
+app\infrastructure\chunkers\semantic.py:72: in chunk
+    sim = self._cosine_similarity(embeddings[i - 1], embeddings[i])
+                                  ^^^^^^^^^^^^^^^^^
+E   TypeError: 'coroutine' object is not subscriptable
+___________________________ test_structure_chunker ____________________________
+tests\unit\test_chunkers.py:85: in test_structure_chunker
+    chunker = StructureChunker(max_section_size=100, fallback_chunk_size=50)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\infrastructure\chunkers\structure.py:34: in __init__
+    self._fallback = FixedWindowChunker(
+app\infrastructure\chunkers\fixed.py:17: in __init__
+    raise ValueError(
+E   ValueError: chunk_overlap (100) must be less than chunk_size (50), otherwise the window never advances
+__________________________ test_ingest_text_success ___________________________
+tests\unit\test_ingestion_service.py:27: in test_ingest_text_success
+    doc = await ingestion_service.ingest_text(
+app\services\ingestion.py:66: in ingest_text
+    chunk.embedding = embeddings[i]
+                      ^^^^^^^^^^^^^
+E   IndexError: list index out of range
+_____________________________ test_ingest_file_md _____________________________
+app\services\ingestion.py:108: in ingest_file
+    return await self.ingest_text(content=content, source=file_path.name)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\services\ingestion.py:66: in ingest_text
+    chunk.embedding = embeddings[i]
+                      ^^^^^^^^^^^^^
+E   IndexError: list index out of range
+
+During handling of the above exception, another exception occurred:
+tests\unit\test_ingestion_service.py:59: in test_ingest_file_md
+    doc = await ingestion_service.ingest_file(md_file)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app\services\ingestion.py:113: in ingest_file
+    raise IngestionError(f"Failed to process {file_path.name}: {str(e)}")
+E   app.core.exceptions.IngestionError: Failed to process test.md: list index out of range
+____________________________ test_ingest_directory ____________________________
+tests\unit\test_ingestion_service.py:84: in test_ingest_directory
+    assert len(successes) == 2
+E   assert 0 == 2
+E    +  where 0 = len([])
+---------------------------- Captured stdout call -----------------------------
+{"timestamp": "2026-04-08T07:10:05.317839+00:00", "level": "INFO", "message": "Starting batch ingestion for 2 files in C:\\Users\\manve\\AppData\\Local\\Temp\\pytest-of-manve\\pytest-4\\test_ingest_directory0", "module": "ingestion", "function": "ingest_directory"}
+{"timestamp": "2026-04-08T07:10:05.319953+00:00", "level": "ERROR", "message": "[1/2] Failed: file1.md - Failed to process file1.md: list index out of range", "module": "ingestion", "function": "ingest_directory"}
+{"timestamp": "2026-04-08T07:10:05.321553+00:00", "level": "ERROR", "message": "[2/2] Failed: file2.txt - Failed to process file2.txt: list index out of range", "module": "ingestion", "function": "ingest_directory"}
+------------------------------ Captured log call ------------------------------
+INFO     root:ingestion.py:125 Starting batch ingestion for 2 files in C:\Users\manve\AppData\Local\Temp\pytest-of-manve\pytest-4\test_ingest_directory0
+ERROR    root:ingestion.py:134 [1/2] Failed: file1.md - Failed to process file1.md: list index out of range
+ERROR    root:ingestion.py:134 [2/2] Failed: file2.txt - Failed to process file2.txt: list index out of range
+=========================== short test summary info ===========================
+FAILED tests/unit/test_chunkers.py::test_semantic_chunker - TypeError: 'corou...
+FAILED tests/unit/test_chunkers.py::test_structure_chunker - ValueError: chun...
+FAILED tests/unit/test_ingestion_service.py::test_ingest_text_success - Index...
+FAILED tests/unit/test_ingestion_service.py::test_ingest_file_md - app.core.e...
+FAILED tests/unit/test_ingestion_service.py::test_ingest_directory - assert 0...
+========================= 5 failed, 7 passed in 0.31s =========================
+D:\ML PROJECTS\data set for ENTERPRISE LEVEL RAG PROJECT\deepvault\.venv\Lib\site-packages\_pytest\unraisableexception.py:33: RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited
+  gc.collect()
+RuntimeWarning: Enable tracemalloc to get the object allocation traceback

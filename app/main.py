@@ -27,10 +27,7 @@ def create_app() -> FastAPI:
     # Add our Request ID & Performance Logging middleware
     app.add_middleware(LoggingMiddleware)
 
-    # Mount the V1 API routes
-    app.mount("/api/v1", api_router)
-    
-    # Also include the router directly so /api/v1/health etc. work
+    # Include the API router
     app.include_router(api_router, prefix="/api/v1")
 
     return app

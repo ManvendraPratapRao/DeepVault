@@ -30,8 +30,9 @@ class Settings(BaseSettings):
     # Chunker Defaults
     CHUNKER_SIZE: int = 500
     CHUNKER_OVERLAP: int = 100
-    CHUNKER_STRATEGY: str = "fixed"  # "fixed" | "sliding"
-    
+    CHUNKER_STRATEGY: str = "fixed"  # "fixed" | "sliding" | "semantic" | "structure"
+    SEMANTIC_SIMILARITY_THRESHOLD: float = 0.75
+
     # SQLite
     SQLITE_DB_PATH: str = "deepvault.db"
     

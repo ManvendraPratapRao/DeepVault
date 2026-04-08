@@ -6,6 +6,8 @@ from app.infrastructure.logging.structured import logger
 from app.infrastructure.embedders.bge import BgeEmbedder
 from app.infrastructure.chunkers.fixed import FixedWindowChunker
 from app.infrastructure.chunkers.sliding import SlidingWindowChunker
+from app.infrastructure.chunkers.semantic import SemanticChunker
+from app.infrastructure.chunkers.structure import StructureChunker
 from app.infrastructure.stores.sqlite import SqliteDocumentStore
 from app.infrastructure.stores.qdrant import QdrantVectorStore
 from app.infrastructure.llm.groq import GroqLLMClient
@@ -26,11 +28,23 @@ async def get_embedder() -> BgeEmbedder:
 
 async def get_chunker():
     if "chunker" not in _cache:
-        # Toggles strategy based on your .env settings
-        if settings.CHUNKER_STRATEGY == "sliding":
+        strategy = settings.CHUNKER_STRATEGY
+        if strategy == "sliding":
             _cache["chunker"] = SlidingWindowChunker(
                 chunk_size=settings.CHUNKER_SIZE,
                 chunk_overlap=settings.CHUNKER_OVERLAP
+            )
+        elif strategy == "semantic":
+            embedder = await get_embedder()
+            _cache["chunker"] = SemanticChunker(
+                embedder=embedder,
+                similarity_threshold=settings.SEMANTIC_SIMILARITY_THRESHOLD
+            )
+        elif strategy == "structure":
+            _cache["chunker"] = StructureChunker(
+                max_section_size=1500,
+                fallback_chunk_size=settings.CHUNKER_SIZE,
+                fallback_overlap=settings.CHUNKER_OVERLAP
             )
         else:
             _cache["chunker"] = FixedWindowChunker(
@@ -38,6 +52,7 @@ async def get_chunker():
                 chunk_overlap=settings.CHUNKER_OVERLAP
             )
     return _cache["chunker"]
+
 
 async def get_doc_store() -> SqliteDocumentStore:
     if "doc_store" not in _cache:
