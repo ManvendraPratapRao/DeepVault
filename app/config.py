@@ -39,6 +39,11 @@ class Settings(BaseSettings):
     # SQLite
     SQLITE_DB_PATH: str = "deepvault.db"
 
+    # Data Pipeline
+    DATA_DIRS: list[str] = ["synthetic_data_v2", "data"]
+    SUPPORTED_FILE_EXTENSIONS: list[str] = [".md", ".txt", ".pdf"]
+    MAX_UPLOAD_SIZE_BYTES: int = 10 * 1024 * 1024  # 10MB
+
     # Logging
     LOG_LEVEL: str = "INFO"
 
