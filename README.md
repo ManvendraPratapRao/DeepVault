@@ -24,24 +24,45 @@ graph LR;
 
 ## Quick Start 🎯
 
-Boot up the entire dynamic Enterprise architecture completely natively in 3 commands locally automatically.
+### 1. Prerequisites
+- [uv](https://github.com/astral-sh/uv) installed.
+- [Groq API Key](https://console.groq.com/).
+- [Docker](https://www.docker.com/) (Optional, but highly recommended for Qdrant/Redis processing).
 
-### 1. Launch the Swarm Node
+### 2. Installation
+```powershell
+# Clone the repository
+git clone https://github.com/ManvendraPratapRao/DeepVault.git
+cd DeepVault
+
+# Setup environment
+cp .env.example .env  # Add your GROQ_API_KEY
+uv sync
+```
+
+### 3. Launch the Swarm Node
 Start the exact microservices dynamically deploying Qdrant and Redis concurrently in exactly detached layers:
 ```bash
 make docker-up
 ```
+*(If on Windows without `make`, use: `docker compose -f docker/docker-compose.yml up --build -d`)*
 
-### 2. Populate the Network
+### 4. Populate the Network
 Recursively push native dynamic local array datasets completely evaluating all PDFs/Markdown documents asynchronously computationally directly dynamically into vectors instantly:
 ```bash
 make seed
 ```
+*(If on Windows without `make`, use: `uv run python scripts/seed_data.py`)*
 
-### 3. Access The Pipeline
+### 5. Access The Pipeline
 Mechanically ping the network instantly to verify latency networks completely automatically:
 ```bash
 curl -X POST "http://localhost:8000/api/v1/query" \
      -H "Content-Type: application/json" \
      -d '{"query_text": "What does DeepVault actually do?", "top_k": 3}'
 ```
+Or visit `http://localhost:8000/docs` to see the interactive Swagger UI documentation!
+
+## 🧪 Development
+- `make test` : Runs the full local integration & unit testing matrix (`pytest`).
+- `make lint-fix` : Re-aligns the python codebase using `ruff` strictly mathematically.
