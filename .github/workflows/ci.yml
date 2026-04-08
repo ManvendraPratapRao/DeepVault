@@ -1,40 +1,41 @@
-name: CI
+name: CI Pipeline
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ "main" ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ "main" ]
 
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Install uv
+
+      - name: Setup uv
         uses: astral-sh/setup-uv@v4
         with:
-          enable-cache: true
-          
+          version: "latest"
+
       - name: Set up Python
         run: uv python install 3.13
-        
-      - name: Install dependencies
-        run: uv sync --all-groups
-        
-      - name: Lint and Format
-        run: |
-          uv run ruff check .
-          uv run ruff format --check .
-          
-      - name: Type Check (Advisory Only)
-        # We append '|| true' so typing issues don't block the PR while we are in heavy development.
-        # We also specifically only scan 'app' and 'tests', avoiding extraneous folders.
-        run: uv run mypy app tests || true
-        
-      - name: Run Unit & Integration Tests
-        env:
-          # Use a dummy key so Pydantic validation passes; tests use local mocked clients anyway.
-          GROQ_API_KEY: "dummy-key-for-github-actions"
+
+      - name: Sync dependencies
+        run: uv sync --frozen
+
+      - name: Check Formatting (Ruff)
+        run: uv run ruff format --check app/ tests/ scripts/
+
+      - name: Lint (Ruff)
+        run: uv run ruff check app/ tests/ scripts/
+
+      - name: Type checking (mypy)
+        run: uv run mypy app/ || true
+
+      - name: Test (Pytest)
         run: uv run pytest -v --tb=short
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+
+      - name: Build Docker
+        run: docker compose -f docker/docker-compose.yml build

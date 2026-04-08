@@ -82,9 +82,9 @@ class QueryService:
         )
 
         response = QueryResponse(answer=answer, sources=chunks, latency_ms=latency_ms, request_id=request_id)
-        
+
         # 7. Cache the semantic result to radically speed up identical future questions
         if self.cache_service:
             await self.cache_service.cache_response(request.query_text, response)
-            
+
         return response

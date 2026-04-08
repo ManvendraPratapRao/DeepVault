@@ -22,8 +22,16 @@ class QdrantVectorStore(BaseVectorStore):
 
     def __init__(self, collection_name: str = None):
         self.collection_name = collection_name or settings.QDRANT_COLLECTION
-        # Use local path for persistence without Docker
-        self.client = AsyncQdrantClient(path="qdrant_storage")
+
+        # Determine if we should use HTTP networking (Docker Server) or Local SSD
+        if settings.QDRANT_HOST and settings.QDRANT_HOST != "local":
+            url = f"http://{settings.QDRANT_HOST}:{settings.QDRANT_PORT}"
+            self.client = AsyncQdrantClient(url=url)
+            logger.info(f"Qdrant Vector Store instantiated over Network HTTP: {url}")
+        else:
+            # Fallback to pure local persistence if specifically requested
+            self.client = AsyncQdrantClient(path="qdrant_storage")
+            logger.info("Qdrant Vector Store instantiated over Local SQLite Path")
 
     async def initialize(self, vector_size: int):
         """Creates the collection with the correct vector dimensions."""

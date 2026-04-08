@@ -12,7 +12,7 @@ from app.infrastructure.logging.structured import logger
 async def seed_data(data_dirs: list[str], chunker: str, dry_run: bool):
     """Production seeder script targeting markdown and PDFs across nested directories."""
     valid_dirs = []
-    
+
     for d in data_dirs:
         path = Path(d)
         if path.exists():
@@ -35,11 +35,11 @@ async def seed_data(data_dirs: list[str], chunker: str, dry_run: bool):
 
     if dry_run:
         print("[DRY RUN] Will not initialize DB or write records.")
-        
+
         files = []
         for d in valid_dirs:
             files.extend([f for ext in settings.SUPPORTED_FILE_EXTENSIONS for f in d.rglob(f"*{ext}")])
-            
+
         print(f"Found {len(files)} supportive files matching {settings.SUPPORTED_FILE_EXTENSIONS}.")
         for f in files[:5]:  # Show first 5
             print(f" - {f.name}")
@@ -56,7 +56,7 @@ async def seed_data(data_dirs: list[str], chunker: str, dry_run: bool):
     files = []
     for d in valid_dirs:
         files.extend([f for ext in settings.SUPPORTED_FILE_EXTENSIONS for f in d.rglob(f"*{ext}")])
-        
+
     total_files = len(files)
 
     pdf_count = 0
@@ -102,7 +102,12 @@ async def seed_data(data_dirs: list[str], chunker: str, dry_run: bool):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="DeepVault local corpus bootstrapper")
-    parser.add_argument("--data-dirs", nargs="+", default=settings.DATA_DIRS, help="Multiple parent directories containing data (space-separated)")
+    parser.add_argument(
+        "--data-dirs",
+        nargs="+",
+        default=settings.DATA_DIRS,
+        help="Multiple parent directories containing data (space-separated)",
+    )
     parser.add_argument(
         "--chunker", type=str, choices=["fixed", "sliding", "semantic", "structure"], help="Override chunking strategy"
     )
