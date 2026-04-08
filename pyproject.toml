@@ -46,3 +46,7 @@ python_version = "3.13"
 strict = false
 ignore_missing_imports = true
 check_untyped_defs = true
+exclude = [
+    '^\\.venv/',
+    '^venv/'
+]
