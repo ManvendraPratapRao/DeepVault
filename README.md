@@ -48,8 +48,8 @@ graph TD
 ### 2. Installation
 
 ```powershell
-# Clone the repository
-git clone https://github.com/YOUR_USERNAME/deepvault.git
+# Clone the repository: 
+git clone https://github.com/ManvendraPratapRao/deepvault.git
 cd deepvault
 
 # Setup environment
