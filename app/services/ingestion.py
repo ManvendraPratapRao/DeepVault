@@ -39,8 +39,10 @@ class IngestionService:
         start_time = time.perf_counter()
         extra_metadata = extra_metadata or {}
 
-        # 1. Compute SHA-256 hash for deduplication
-        doc_hash = hashlib.sha256(content.encode()).hexdigest()
+        # 1. Compute SHA-256 hash combined with strategy for logical separation
+        strategy = getattr(self.chunker, "strategy_name", "unknown")
+        unique_string = f"{strategy}_{content}"
+        doc_hash = hashlib.sha256(unique_string.encode()).hexdigest()
 
         # 2. Check for duplicates (Production Safety)
         existing_doc = await self.doc_store.get_document(doc_hash)
@@ -48,7 +50,7 @@ class IngestionService:
             raise DuplicateDocumentError(f"Document with hash {doc_hash} already exists.", detail={"source": source})
 
         # 3. Build Document Object
-        metadata = DocumentMetadata(source=source, author=author, **extra_metadata)
+        metadata = DocumentMetadata(source=source, author=author, chunking_strategy=strategy, **extra_metadata)
         doc = Document(content=content, hash=doc_hash, metadata=metadata)
 
         # 4. Chunk it (Offload CPU-heavy task to a thread to keep the API responsive)

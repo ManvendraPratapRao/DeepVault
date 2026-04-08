@@ -13,6 +13,7 @@ class DocumentMetadata(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     version: int = 1
     permissions: list[str] = Field(default_factory=lambda: ["admin"])
+    chunking_strategy: str = Field(default="fixed")
     extra: dict[str, Any] = Field(default_factory=dict)
 
 

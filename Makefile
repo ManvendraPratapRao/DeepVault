@@ -13,7 +13,10 @@ test-cov:
 	uv run pytest --cov=app --cov-report=term-missing
 
 seed:
-	uv run python scripts/seed_data.py
+	PYTHONPATH=. uv run python scripts/seed_data.py
+
+seed-all:
+	PYTHONPATH=. uv run python scripts/seed_all.py
 
 eval:
 	uv run python scripts/run_eval.py

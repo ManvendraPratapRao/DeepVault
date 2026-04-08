@@ -47,12 +47,18 @@ make docker-up
 ```
 *(If on Windows without `make`, use: `docker compose -f docker/docker-compose.yml up --build -d`)*
 
-### 4. Populate the Network
-Recursively push native dynamic local array datasets completely evaluating all PDFs/Markdown documents asynchronously computationally directly dynamically into vectors instantly:
+### 4. Populate the Network (Strategic Pass)
+DeepVault supports **Multi-Strategy### ⚙️ Parameters (Tuned)
+- **Window Size**: `500` characters.
+- **Stride (The Step)**: `400` characters.
+- **Resulting Overlap**: **20%** (mathematically balanced).
+trategies (Fixed, Sliding, Structure, Semantic) using a single command:
 ```bash
-make seed
+make seed-all
 ```
-*(If on Windows without `make`, use: `uv run python scripts/seed_data.py`)*
+*(If on Windows without `make`, use: `$env:PYTHONPATH="."; uv run python scripts/seed_all.py`)*
+
+This creates 4 isolated collections in Qdrant (e.g., `deepvault_fixed`, `deepvault_sliding`) allowing for side-by-side benchmarking.
 
 ### 5. Access The Pipeline
 Mechanically ping the network instantly to verify latency networks completely automatically:

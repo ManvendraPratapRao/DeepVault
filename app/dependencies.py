@@ -48,7 +48,7 @@ async def get_chunker():
         strategy = settings.CHUNKER_STRATEGY
         if strategy == "sliding":
             _cache["chunker"] = SlidingWindowChunker(
-                chunk_size=settings.CHUNKER_SIZE, chunk_overlap=settings.CHUNKER_OVERLAP
+                window_size=settings.CHUNKER_SIZE, stride=400
             )
         elif strategy == "semantic":
             embedder = await get_embedder()
@@ -65,6 +65,10 @@ async def get_chunker():
             _cache["chunker"] = FixedWindowChunker(
                 chunk_size=settings.CHUNKER_SIZE, chunk_overlap=settings.CHUNKER_OVERLAP
             )
+
+        # Normalize the strategy name for consistent metadata tracking
+        _cache["chunker"].strategy_name = strategy
+
     return _cache["chunker"]
 
 
@@ -76,7 +80,10 @@ async def get_doc_store() -> SqliteDocumentStore:
 
 async def get_vector_store() -> QdrantVectorStore:
     if "vector_store" not in _cache:
-        _cache["vector_store"] = QdrantVectorStore(collection_name=settings.QDRANT_COLLECTION)
+        # Dynamically isolate based on chunking strategy for benchmarking
+        strategy = settings.CHUNKER_STRATEGY
+        collection = f"deepvault_{strategy}"
+        _cache["vector_store"] = QdrantVectorStore(collection_name=collection)
     return _cache["vector_store"]
 
 
@@ -147,5 +154,11 @@ async def shutdown_all():
         await _cache["vector_store"].close()
     if "redis_cache" in _cache:
         await _cache["redis_cache"].close()
-    _cache.clear()
+    clear_cache()
     logger.info("Shutdown complete.")
+
+
+def clear_cache():
+    """Manually resets singleton cache - useful for multi-pass seating/testing."""
+    _cache.clear()
+    logger.info("Dependency cache cleared.")
