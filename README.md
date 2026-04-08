@@ -28,11 +28,11 @@ graph TD
     Middleware --> Service[Service Layer]
     Service --> Ingestion[Ingestion Service]
     Service --> Query[Query Service]
-    
+  
     Ingestion --> Chunker[Chunker]
     Chunker --> Embedder[Embedder]
     Embedder --> VectorDB[(Qdrant)]
-    
+  
     Query --> Retriever[Vector Retriever]
     Retriever --> VectorDB
     Query --> LLM[Groq Client]
@@ -41,10 +41,12 @@ graph TD
 ## ⚙️ Quick Start
 
 ### 1. Prerequisites
+
 - [uv](https://github.com/astral-sh/uv) installed.
 - [Groq API Key](https://console.groq.com/).
 
 ### 2. Installation
+
 ```powershell
 # Clone the repository
 git clone https://github.com/YOUR_USERNAME/deepvault.git
@@ -56,6 +58,7 @@ uv sync
 ```
 
 ### 3. Run the Server
+
 ```powershell
 $env:PYTHONPATH="."; uv run python main.py
 ```
@@ -72,6 +75,3 @@ uv run pytest
 uv run ruff check .
 uv run mypy .
 ```
-
----
-*Built with ❤️ on the Professional Path.*
