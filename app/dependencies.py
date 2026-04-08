@@ -1,6 +1,7 @@
 from typing import Any
 
 from app.config import settings
+from app.infrastructure.cache.redis import RedisCache
 from app.infrastructure.chunkers.fixed import FixedWindowChunker
 from app.infrastructure.chunkers.semantic import SemanticChunker
 from app.infrastructure.chunkers.sliding import SlidingWindowChunker
@@ -13,6 +14,7 @@ from app.infrastructure.logging.structured import logger
 from app.infrastructure.retrievers.vector import VectorRetriever
 from app.infrastructure.stores.qdrant import QdrantVectorStore
 from app.infrastructure.stores.sqlite import SqliteDocumentStore
+from app.services.cache_service import CacheService
 from app.services.document import DocumentService
 
 # Service Imports
@@ -23,9 +25,21 @@ from app.services.query import QueryService
 _cache: dict[str, Any] = {}
 
 
+async def get_redis_cache() -> RedisCache:
+    if "redis_cache" not in _cache:
+        _cache["redis_cache"] = RedisCache()
+    return _cache["redis_cache"]
+
+
+async def get_cache_service() -> CacheService:
+    if "cache_service" not in _cache:
+        _cache["cache_service"] = CacheService(redis_cache=await get_redis_cache())
+    return _cache["cache_service"]
+
+
 async def get_embedder() -> BgeEmbedder:
     if "embedder" not in _cache:
-        _cache["embedder"] = BgeEmbedder()
+        _cache["embedder"] = BgeEmbedder(cache_service=await get_cache_service())
     return _cache["embedder"]
 
 
@@ -94,7 +108,11 @@ async def get_ingestion_service() -> IngestionService:
 
 
 async def get_query_service() -> QueryService:
-    return QueryService(retriever=await get_retriever(), llm_client=await get_llm_client())
+    return QueryService(
+        retriever=await get_retriever(),
+        llm_client=await get_llm_client(),
+        cache_service=await get_cache_service(),
+    )
 
 
 async def get_document_service() -> DocumentService:
@@ -110,10 +128,12 @@ async def initialize_all():
 
     doc_store = await get_doc_store()
     vstore = await get_vector_store()
+    redis_cache = await get_redis_cache()
     embedder = await get_embedder()
 
     await doc_store.initialize()
     await vstore.initialize(vector_size=embedder.get_dimension())
+    await redis_cache.initialize()
 
     logger.info("DeepVault dependencies ready.")
 
@@ -125,5 +145,7 @@ async def shutdown_all():
         await _cache["doc_store"].close()
     if "vector_store" in _cache:
         await _cache["vector_store"].close()
+    if "redis_cache" in _cache:
+        await _cache["redis_cache"].close()
     _cache.clear()
     logger.info("Shutdown complete.")

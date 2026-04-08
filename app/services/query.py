@@ -6,6 +6,7 @@ from app.core.interfaces.retriever import BaseRetriever
 from app.core.models.query import QueryRequest, QueryResponse
 from app.infrastructure.logging.structured import logger
 from app.prompts.v1 import RAG_SYSTEM_PROMPT, RAG_USER_TEMPLATE
+from app.services.cache_service import CacheService
 
 
 class QueryService:
@@ -14,9 +15,10 @@ class QueryService:
     Coordinates between retrieval and LLM generation.
     """
 
-    def __init__(self, retriever: BaseRetriever, llm_client: BaseLLMClient):
+    def __init__(self, retriever: BaseRetriever, llm_client: BaseLLMClient, cache_service: CacheService | None = None):
         self.retriever = retriever
         self.llm_client = llm_client
+        self.cache_service = cache_service
 
     async def ask(self, request: QueryRequest, request_id: str = "internal") -> QueryResponse:
         """
@@ -29,7 +31,16 @@ class QueryService:
             extra={"extra_fields": {"request_id": request_id}},
         )
 
-        # 1. Retrieve relevant chunks from the Vector Store
+        # 1. Check Redis Cache for instantaneous semantic hits!
+        if self.cache_service:
+            cached_resp = await self.cache_service.get_cached_response(request.query_text)
+            if cached_resp:
+                # We overwrite the cached request_id with the live transaction IDs to keep traces clean
+                cached_resp.request_id = request_id
+                cached_resp.latency_ms = (time.perf_counter() - start_time) * 1000
+                return cached_resp
+
+        # 2. Retrieve relevant chunks from the Vector Store
         # We use top_k=5 as the default for high-quality context
         chunks = await self.retriever.retrieve(query=request.query_text, top_k=5, filters=request.filters)
 
@@ -59,14 +70,21 @@ class QueryService:
         latency_ms = (time.perf_counter() - start_time) * 1000
 
         logger.info(
-            "Query answered successfully",
+            "Query answered successfully (Cache Miss)",
             extra={
                 "extra_fields": {
                     "request_id": request_id,
                     "latency_ms": latency_ms,
                     "num_sources": len(chunks),
+                    "cache_miss": True,
                 }
             },
         )
 
-        return QueryResponse(answer=answer, sources=chunks, latency_ms=latency_ms, request_id=request_id)
+        response = QueryResponse(answer=answer, sources=chunks, latency_ms=latency_ms, request_id=request_id)
+        
+        # 7. Cache the semantic result to radically speed up identical future questions
+        if self.cache_service:
+            await self.cache_service.cache_response(request.query_text, response)
+            
+        return response

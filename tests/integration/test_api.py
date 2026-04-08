@@ -6,7 +6,7 @@ from httpx import ASGITransport, AsyncClient
 
 from app.api.schemas.responses import QueryAPIResponse, SourceChunk
 from app.core.models.document import Document, DocumentMetadata
-from app.dependencies import get_document_service, get_ingestion_service, get_query_service
+from app.dependencies import get_document_service, get_ingestion_service, get_query_service, get_redis_cache
 from app.main import app
 
 # --- Mock Services ---
@@ -54,15 +54,22 @@ def mock_document_svc():
     return svc
 
 
+@pytest.fixture
+def mock_redis():
+    svc = AsyncMock()
+    return svc
+
+
 # --- App override fixture ---
 
 
 @pytest_asyncio.fixture
-async def test_client(mock_ingestion_svc, mock_query_svc, mock_document_svc):
+async def test_client(mock_ingestion_svc, mock_query_svc, mock_document_svc, mock_redis):
     # Override dependencies
     app.dependency_overrides[get_ingestion_service] = lambda: mock_ingestion_svc
     app.dependency_overrides[get_query_service] = lambda: mock_query_svc
     app.dependency_overrides[get_document_service] = lambda: mock_document_svc
+    app.dependency_overrides[get_redis_cache] = lambda: mock_redis
 
     # We must patch initialize_all, shutdown_all, and AsyncQdrantClient to avoid hitting real DBs during tests
     with (
@@ -137,3 +144,32 @@ async def test_list_documents_pagination(test_client, mock_document_svc):
     assert data["offset"] == 0
     assert len(data["documents"]) == 1
     mock_document_svc.list_documents.assert_awaited_once_with(limit=2, offset=0)
+
+
+@pytest.mark.asyncio
+async def test_ingest_async_fire_and_forget(test_client, mock_redis):
+    resp = await test_client.post("/api/v1/documents/text/async", json={"content": "async text", "source": "bg_job"})
+    assert resp.status_code == 202
+    data = resp.json()
+    assert "job_id" in data
+    assert data["status"] == "pending"
+    assert "status_url" in data
+    mock_redis.set.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_job_status_endpoint(test_client, mock_redis):
+    import json
+
+    # Mock redis returning a job string
+    mock_redis.get.return_value = json.dumps({"status": "processing"})
+
+    resp = await test_client.get("/api/v1/documents/jobs/fake-uuid-1234")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "processing"
+
+    # Mock a missing job
+    mock_redis.get.return_value = None
+    resp = await test_client.get("/api/v1/documents/jobs/non-existent")
+    assert resp.status_code == 404

@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     # Redis (Caching)
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
+    REDIS_TTL_SECONDS: int = 3600         # 1 hour default
+    CACHE_ENABLED: bool = True            # Feature flag to turn off query caching
+    EMBEDDING_CACHE_ENABLED: bool = True  # Feature flag for embedding cache
 
     # Embedding Model
     EMBEDDING_MODEL_NAME: str = "BAAI/bge-small-en-v1.5"
