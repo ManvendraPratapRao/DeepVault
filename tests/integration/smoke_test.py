@@ -31,9 +31,7 @@ async def run_smoke_test():
         "The system is designed for high-performance enterprise search."
     )
     doc_hash = hashlib.sha256(content.encode()).hexdigest()
-    doc = Document(
-        content=content, hash=doc_hash, metadata=DocumentMetadata(source="smoke_test_manual")
-    )
+    doc = Document(content=content, hash=doc_hash, metadata=DocumentMetadata(source="smoke_test_manual"))
 
     # 3. Test Chunking
     logger.info("Testing Chunker...")

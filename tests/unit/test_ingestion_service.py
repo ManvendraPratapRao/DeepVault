@@ -25,14 +25,10 @@ def ingestion_service(mock_chunker, mock_embedder, mock_doc_store, mock_vector_s
 
 
 @pytest.mark.asyncio
-async def test_ingest_text_success(
-    ingestion_service, mock_doc_store, mock_vector_store, mock_embedder
-):
+async def test_ingest_text_success(ingestion_service, mock_doc_store, mock_vector_store, mock_embedder):
     mock_doc_store.get_document.return_value = None  # Ensure it's not a duplicate
 
-    doc = await ingestion_service.ingest_text(
-        content="Test content", source="test.txt", author="Unit Test"
-    )
+    doc = await ingestion_service.ingest_text(content="Test content", source="test.txt", author="Unit Test")
 
     assert doc is not None
     assert doc.content == "Test content"

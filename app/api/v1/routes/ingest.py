@@ -14,14 +14,10 @@ router = APIRouter()
 
 
 @router.post("/text", response_model=IngestResponse)
-async def ingest_text(
-    request: IngestTextRequest, service: IngestionService = Depends(get_ingestion_service)
-):
+async def ingest_text(request: IngestTextRequest, service: IngestionService = Depends(get_ingestion_service)):
     """Processes raw text directly into the system."""
     try:
-        doc = await service.ingest_text(
-            content=request.content, source=request.source, author=request.author
-        )
+        doc = await service.ingest_text(content=request.content, source=request.source, author=request.author)
         return IngestResponse(
             document_id=doc.id,
             source=doc.metadata.source,
@@ -39,9 +35,7 @@ async def ingest_text(
 
 
 @router.post("/file", response_model=IngestResponse)
-async def ingest_file(
-    file: UploadFile = File(...), service: IngestionService = Depends(get_ingestion_service)
-):
+async def ingest_file(file: UploadFile = File(...), service: IngestionService = Depends(get_ingestion_service)):
     """Saves an uploaded file to a temp path and processes it."""
     # Create a temp file to allow PyMuPDF or Path.read_text to access it
     suffix = Path(file.filename).suffix

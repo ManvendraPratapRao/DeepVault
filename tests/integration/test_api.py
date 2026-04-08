@@ -33,11 +33,7 @@ def mock_query_svc():
     # Return a dummy query response
     svc.ask.return_value = QueryAPIResponse(
         answer="This is a test answer.",
-        sources=[
-            SourceChunk(
-                content="chunk1", document_id="doc1", chunk_index=0, metadata={"source": "test.txt"}
-            )
-        ],
+        sources=[SourceChunk(content="chunk1", document_id="doc1", chunk_index=0, metadata={"source": "test.txt"})],
         latency_ms=42.0,
         request_id="req-123",
     )
@@ -59,7 +55,6 @@ def mock_document_svc():
 
 
 # --- App override fixture ---
-
 
 
 @pytest_asyncio.fixture
@@ -105,9 +100,7 @@ async def test_ingest_and_query(test_client, mock_ingestion_svc, mock_query_svc)
     mock_ingestion_svc.ingest_text.assert_awaited_once()
 
     # Query
-    resp_query = await test_client.post(
-        "/api/v1/query", json={"query_text": "Is DeepVault awesome?", "top_k": 3}
-    )
+    resp_query = await test_client.post("/api/v1/query", json={"query_text": "Is DeepVault awesome?", "top_k": 3})
     assert resp_query.status_code == 200
     data = resp_query.json()
     assert data["answer"] == "This is a test answer."
@@ -119,13 +112,9 @@ async def test_ingest_and_query(test_client, mock_ingestion_svc, mock_query_svc)
 async def test_ingest_duplicate_idempotent(test_client, mock_ingestion_svc):
     from app.core.exceptions import DuplicateDocumentError
 
-    mock_ingestion_svc.ingest_text.side_effect = DuplicateDocumentError(
-        "Already exists", detail={"source": "test.txt"}
-    )
+    mock_ingestion_svc.ingest_text.side_effect = DuplicateDocumentError("Already exists", detail={"source": "test.txt"})
 
-    resp = await test_client.post(
-        "/api/v1/documents/text", json={"content": "duplicate content", "source": "test"}
-    )
+    resp = await test_client.post("/api/v1/documents/text", json={"content": "duplicate content", "source": "test"})
     assert resp.status_code == 200
     assert resp.json()["already_existed"] is True
     assert resp.json()["document_id"] == ""

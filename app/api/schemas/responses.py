@@ -26,9 +26,7 @@ class QueryAPIResponse(BaseModel):
     """The main RAG response."""
 
     answer: str = Field(..., description="The AI-generated answer")
-    sources: list[SourceChunk] = Field(
-        ..., description="The pieces of context used to generate the answer"
-    )
+    sources: list[SourceChunk] = Field(..., description="The pieces of context used to generate the answer")
     latency_ms: float = Field(..., description="Time taken to process the query in milliseconds")
     request_id: str = Field(..., description="The unique trace ID for this request")
 

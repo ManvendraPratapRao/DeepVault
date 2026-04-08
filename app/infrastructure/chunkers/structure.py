@@ -31,9 +31,7 @@ class StructureChunker(BaseChunker):
         self.fallback_chunk_size = fallback_chunk_size
         self.fallback_overlap = fallback_overlap
         # Pre-build the fallback chunker
-        self._fallback = FixedWindowChunker(
-            chunk_size=fallback_chunk_size, chunk_overlap=fallback_overlap
-        )
+        self._fallback = FixedWindowChunker(chunk_size=fallback_chunk_size, chunk_overlap=fallback_overlap)
 
     def _extract_sections(self, text: str) -> list[tuple[str | None, str]]:
         """

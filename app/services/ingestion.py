@@ -45,9 +45,7 @@ class IngestionService:
         # 2. Check for duplicates (Production Safety)
         existing_doc = await self.doc_store.get_document(doc_hash)
         if existing_doc:
-            raise DuplicateDocumentError(
-                f"Document with hash {doc_hash} already exists.", detail={"source": source}
-            )
+            raise DuplicateDocumentError(f"Document with hash {doc_hash} already exists.", detail={"source": source})
 
         # 3. Build Document Object
         metadata = DocumentMetadata(source=source, author=author, **extra_metadata)
@@ -101,9 +99,7 @@ class IngestionService:
                         content += page.get_text()
 
                 if not content.strip():
-                    raise IngestionError(
-                        f"PDF file {file_path.name} appears to be empty or image-only (no OCR)."
-                    )
+                    raise IngestionError(f"PDF file {file_path.name} appears to be empty or image-only (no OCR).")
 
             else:
                 raise IngestionError(f"Unsupported file type: {suffix}")

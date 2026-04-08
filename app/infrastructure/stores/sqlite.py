@@ -29,9 +29,7 @@ class SqliteDocumentStore(BaseDocumentStore):
             )
         """)
         await self._db.commit()
-        logger.info(
-            "SQLite Document Store initialized.", extra={"extra_fields": {"db_path": self.db_path}}
-        )
+        logger.info("SQLite Document Store initialized.", extra={"extra_fields": {"db_path": self.db_path}})
 
     async def close(self):
         """Gracefully closes the persistent database connection."""
@@ -43,9 +41,7 @@ class SqliteDocumentStore(BaseDocumentStore):
     def _ensure_connected(self):
         """Guard to prevent operations on a closed or uninitialized store."""
         if self._db is None:
-            raise RuntimeError(
-                "SqliteDocumentStore is not initialized. Call await store.initialize() first."
-            )
+            raise RuntimeError("SqliteDocumentStore is not initialized. Call await store.initialize() first.")
 
     async def upsert_document(self, document: Document) -> None:
         """Stores or updates a document using its ID."""

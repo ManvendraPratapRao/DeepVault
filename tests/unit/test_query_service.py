@@ -22,9 +22,7 @@ async def test_ask_returns_response(query_service, mock_retriever, mock_llm_clie
     assert response.latency_ms > 0
     assert response.request_id is not None
 
-    mock_retriever.retrieve.assert_awaited_once_with(
-        query="What is DeepVault?", top_k=5, filters=None
-    )
+    mock_retriever.retrieve.assert_awaited_once_with(query="What is DeepVault?", top_k=5, filters=None)
     mock_llm_client.generate.assert_awaited_once()
 
 

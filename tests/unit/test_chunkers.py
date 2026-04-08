@@ -23,9 +23,7 @@ def test_fixed_chunker_normal_document(sample_document):
 
 
 def test_fixed_chunker_short_document():
-    doc = Document(
-        id="short-doc", content="Too short.", metadata=DocumentMetadata(source="test"), hash="hash1"
-    )
+    doc = Document(id="short-doc", content="Too short.", metadata=DocumentMetadata(source="test"), hash="hash1")
     chunker = FixedWindowChunker(chunk_size=50, chunk_overlap=10)
     chunks = chunker.chunk(doc)
 
@@ -43,9 +41,7 @@ def test_fixed_chunker_invalid_params():
 
 def test_sliding_chunker_sentence_boundaries():
     text = "This is sentence one. This is sentence two! And sentence three?"
-    doc = Document(
-        id="test-doc", content=text, metadata=DocumentMetadata(source="test"), hash="hash1"
-    )
+    doc = Document(id="test-doc", content=text, metadata=DocumentMetadata(source="test"), hash="hash1")
     # Window size 25 splits mid-sentence for "This is sentence two!".
     # The chunker should try to expand to the sentence boundary.
     chunker = SlidingWindowChunker(window_size=25, stride=20)
@@ -62,8 +58,6 @@ def test_chunk_metadata_propagated(sample_document):
         assert chunk.document_id == sample_document.id
         assert chunk.metadata["source"] == sample_document.metadata.source
         assert chunk.metadata["author"] == sample_document.metadata.author
-
-
 
 
 def test_semantic_chunker(mock_embedder):
@@ -86,9 +80,7 @@ def test_semantic_chunker(mock_embedder):
 
 def test_structure_chunker():
     text = "# Heading 1\nContent 1\n## Heading 2\nContent 2"
-    doc = Document(
-        id="test-doc", content=text, metadata=DocumentMetadata(source="test"), hash="hash1"
-    )
+    doc = Document(id="test-doc", content=text, metadata=DocumentMetadata(source="test"), hash="hash1")
     chunker = StructureChunker(max_section_size=100, fallback_chunk_size=50, fallback_overlap=10)
     chunks = chunker.chunk(doc)
     assert len(chunks) == 2

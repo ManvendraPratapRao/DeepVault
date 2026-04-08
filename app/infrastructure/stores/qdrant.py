@@ -72,9 +72,7 @@ class QdrantVectorStore(BaseVectorStore):
         await self.client.upsert(collection_name=self.collection_name, points=points)
         logger.info(f"Upserted {len(points)} points to Qdrant.")
 
-    async def search(
-        self, query_vector: list[float], top_k: int = 5, filters: dict | None = None
-    ) -> list[Chunk]:
+    async def search(self, query_vector: list[float], top_k: int = 5, filters: dict | None = None) -> list[Chunk]:
         """Searches for the nearest neighbors using the modern query_points API."""
 
         # Build Qdrant filter if filter dict is provided
@@ -99,11 +97,7 @@ class QdrantVectorStore(BaseVectorStore):
                 document_id=point.payload["document_id"],
                 content=point.payload["content"],
                 chunk_index=point.payload["chunk_index"],
-                metadata={
-                    k: v
-                    for k, v in point.payload.items()
-                    if k not in ["document_id", "content", "chunk_index"]
-                },
+                metadata={k: v for k, v in point.payload.items() if k not in ["document_id", "content", "chunk_index"]},
             )
             for point in results.points
         ]
@@ -112,8 +106,6 @@ class QdrantVectorStore(BaseVectorStore):
         """Filters by document_id and deletes the associated points."""
         await self.client.delete(
             collection_name=self.collection_name,
-            points_selector=Filter(
-                must=[FieldCondition(key="document_id", match=MatchValue(value=doc_id))]
-            ),
+            points_selector=Filter(must=[FieldCondition(key="document_id", match=MatchValue(value=doc_id))]),
         )
         logger.info(f"Deleted all points for document: {doc_id}")
