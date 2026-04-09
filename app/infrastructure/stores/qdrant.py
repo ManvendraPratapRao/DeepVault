@@ -20,18 +20,22 @@ class QdrantVectorStore(BaseVectorStore):
     Uses 'Local Path' storage for persistent disk-based indexing.
     """
 
-    def __init__(self, collection_name: str = None):
+    def __init__(self, collection_name: str = None, client: AsyncQdrantClient | None = None):
         self.collection_name = collection_name or settings.QDRANT_COLLECTION
+        
+        if client:
+            self.client = client
+            return
 
         # Determine if we should use HTTP networking (Docker Server) or Local SSD
         if settings.QDRANT_HOST and settings.QDRANT_HOST != "local":
             url = f"http://{settings.QDRANT_HOST}:{settings.QDRANT_PORT}"
             self.client = AsyncQdrantClient(url=url)
-            logger.info(f"Qdrant Vector Store instantiated over Network HTTP: {url}")
+            logger.info(f"Qdrant Vector Store instantiated over Network HTTP: {url} [Collection: {self.collection_name}]")
         else:
             # Fallback to pure local persistence if specifically requested
             self.client = AsyncQdrantClient(path="qdrant_storage")
-            logger.info("Qdrant Vector Store instantiated over Local SQLite Path")
+            logger.info(f"Qdrant Vector Store instantiated over Local Path [Collection: {self.collection_name}]")
 
     async def initialize(self, vector_size: int):
         """Creates the collection with the correct vector dimensions."""
@@ -80,8 +84,15 @@ class QdrantVectorStore(BaseVectorStore):
         await self.client.upsert(collection_name=self.collection_name, points=points)
         logger.info(f"Upserted {len(points)} points to Qdrant.")
 
-    async def search(self, query_vector: list[float], top_k: int = 5, filters: dict | None = None) -> list[Chunk]:
-        """Searches for the nearest neighbors using the modern query_points API."""
+    async def search(
+        self,
+        query_vector: list[float],
+        top_k: int = 5,
+        filters: dict | None = None,
+        collection_name: str | None = None,
+    ) -> list[Chunk]:
+        """Searches for the nearest neighbors using the high-compatibility API."""
+        target_collection = collection_name or self.collection_name
 
         # Build Qdrant filter if filter dict is provided
         qdrant_filter = None
@@ -91,23 +102,28 @@ class QdrantVectorStore(BaseVectorStore):
                 conditions.append(FieldCondition(key=key, match=MatchValue(value=value)))
             qdrant_filter = Filter(must=conditions)
 
-        results = await self.client.query_points(
-            collection_name=self.collection_name,
-            query=query_vector,
+        # Results are returned using the high-compatibility search API
+        results = await self.client.search(
+            collection_name=target_collection,
+            query_vector=query_vector,
             limit=top_k,
             query_filter=qdrant_filter,
+            with_payload=True,
         )
 
-        # In the new API, results are in .points
         return [
             Chunk(
                 id=str(point.id),
                 document_id=point.payload["document_id"],
                 content=point.payload["content"],
                 chunk_index=point.payload["chunk_index"],
-                metadata={k: v for k, v in point.payload.items() if k not in ["document_id", "content", "chunk_index"]},
+                metadata={
+                    k: v
+                    for k, v in point.payload.items()
+                    if k not in ["document_id", "content", "chunk_index"]
+                },
             )
-            for point in results.points
+            for point in results
         ]
 
     async def delete_by_doc_id(self, doc_id: str) -> None:

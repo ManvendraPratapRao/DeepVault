@@ -3,11 +3,12 @@ name = "deepvault"
 version = "0.1.0"
 description = "Enterprise-grade autonomous RAG system for high-performance semantic search and retrieval"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 dependencies = [
     "aiosqlite>=0.22.1",
     "fastapi>=0.135.3",
     "groq>=1.1.2",
+    "httpx>=0.28.1",
     "pydantic-settings>=2.13.1",
     "pymupdf>=1.27.2.2",
     "python-dotenv>=1.2.2",
@@ -15,6 +16,7 @@ dependencies = [
     "qdrant-client>=1.17.1",
     "redis>=7.4.0",
     "sentence-transformers>=5.3.0",
+    "streamlit>=1.56.0",
     "tenacity>=9.1.0",
     "uvicorn>=0.43.0",
 ]

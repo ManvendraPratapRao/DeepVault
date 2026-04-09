@@ -1,16 +1,31 @@
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.core.models.document import Chunk
 
 
-class QueryRequest(BaseModel):
-    """What the user sends us."""
+class TokenUsage(BaseModel):
+    """Telemetry for LLM cost and context-window monitoring."""
 
+    prompt_tokens: int = Field(default=0)
+    completion_tokens: int = Field(default=0)
+    total_tokens: int = Field(default=0)
+
+
+class LLMResult(BaseModel):
+    """The structured output of an LLM generation."""
+
+    answer: str
+    usage: TokenUsage = Field(default_factory=TokenUsage)
+
+
+class QueryRequest(BaseModel):
+    # ... (Keep existing QueryRequest)
     query_text: str
     user_id: str | None = None
     session_id: str | None = None
+    strategy: str | None = None
     filters: dict[str, Any] | None = None
 
 
@@ -19,6 +34,6 @@ class QueryResponse(BaseModel):
 
     answer: str
     sources: list[Chunk]
+    usage: TokenUsage = Field(default_factory=TokenUsage)
     latency_ms: float
-    # We embed the original request metadata here for audit trails
     request_id: str

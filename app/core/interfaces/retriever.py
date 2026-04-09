@@ -10,6 +10,8 @@ class BaseRetriever(ABC):
     """
 
     @abstractmethod
-    async def retrieve(self, query: str, top_k: int = 5, filters: dict | None = None) -> list[Chunk]:
+    async def retrieve(
+        self, query: str, top_k: int = 5, filters: dict | None = None, collection_name: str | None = None
+    ) -> list[Chunk]:
         """Find the top-k most relevant chunks based on a query."""
         pass

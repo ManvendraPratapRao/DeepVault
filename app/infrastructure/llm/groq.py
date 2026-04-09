@@ -5,6 +5,7 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_ex
 
 from app.config import settings
 from app.core.interfaces.llm_client import BaseLLMClient
+from app.core.models.query import LLMResult, TokenUsage
 from app.infrastructure.logging.structured import logger
 
 
@@ -31,8 +32,9 @@ class GroqLLMClient(BaseLLMClient):
             extra={"extra_fields": {"error": str(retry_state.outcome.exception())}},
         ),
     )
-    async def generate(self, prompt: str, system_prompt: str | None = None) -> str:
+    async def generate(self, prompt: str, system_prompt: str | None = None) -> LLMResult:
         """Sends a single completion request to Groq with automatic retry."""
+        
         messages = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
@@ -45,7 +47,18 @@ class GroqLLMClient(BaseLLMClient):
                 temperature=settings.LLM_TEMPERATURE,
                 max_tokens=settings.LLM_MAX_TOKENS,
             )
-            return completion.choices[0].message.content
+            
+            # Extract telemetry from Groq usage object
+            usage = TokenUsage(
+                prompt_tokens=completion.usage.prompt_tokens,
+                completion_tokens=completion.usage.completion_tokens,
+                total_tokens=completion.usage.total_tokens
+            )
+            
+            return LLMResult(
+                answer=completion.choices[0].message.content,
+                usage=usage
+            )
         except (groq.RateLimitError, groq.APIConnectionError, groq.InternalServerError):
             raise  # Let tenacity handle these
         except Exception as e:

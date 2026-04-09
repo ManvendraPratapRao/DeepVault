@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator
 
+from app.core.models.query import LLMResult
+
 
 class BaseLLMClient(ABC):
     """
@@ -9,8 +11,8 @@ class BaseLLMClient(ABC):
     """
 
     @abstractmethod
-    async def generate(self, prompt: str, system_prompt: str | None = None) -> str:
-        """Generate a complete response."""
+    async def generate(self, prompt: str, system_prompt: str | None = None) -> LLMResult:
+        """Generate a complete response with telemetry."""
         pass
 
     @abstractmethod

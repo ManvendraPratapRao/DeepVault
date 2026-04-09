@@ -15,7 +15,12 @@ class BaseVectorStore(ABC):
         pass
 
     @abstractmethod
-    async def search(self, query_vector: list[float], top_k: int = 5, filters: dict | None = None) -> list[Chunk]:
+    async def search(
+        self,
+        query_vector: list[float],
+        top_k: int = 5,
+        filters: dict | None = None,
+    ) -> list[Chunk]:
         """Perform a vector similarity search."""
         pass
 

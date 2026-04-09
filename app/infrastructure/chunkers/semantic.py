@@ -17,7 +17,7 @@ class SemanticChunker(BaseChunker):
     Trade-off: Slower ingestion (requires embedding every sentence).
     """
 
-    def __init__(self, embedder, similarity_threshold: float = 0.75, min_chunk_size: int = 100):
+    def __init__(self, embedder, similarity_threshold: float = 0.85, min_chunk_size: int = 100):
         """
         Args:
             embedder: A BgeEmbedder instance. We use its internal model for sync encoding.

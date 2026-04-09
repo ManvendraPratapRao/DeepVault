@@ -1,4 +1,7 @@
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
+from qdrant_client import AsyncQdrantClient
 
 from app.config import settings
 from app.infrastructure.cache.redis import RedisCache
@@ -22,7 +25,13 @@ from app.services.ingestion import IngestionService
 from app.services.query import QueryService
 
 # Global cache for singletons (The "Registry")
-_cache: dict[str, Any] = {}
+_cache: dict[str, Any] = {
+    "executor": ThreadPoolExecutor(max_workers=4, thread_name_prefix="dv_worker")
+}
+
+async def get_executor() -> ThreadPoolExecutor:
+    """Returns the shared thread pool for CPU-bound AI tasks."""
+    return _cache["executor"]
 
 
 async def get_redis_cache() -> RedisCache:
@@ -78,13 +87,41 @@ async def get_doc_store() -> SqliteDocumentStore:
     return _cache["doc_store"]
 
 
-async def get_vector_store() -> QdrantVectorStore:
-    if "vector_store" not in _cache:
-        # Dynamically isolate based on chunking strategy for benchmarking
-        strategy = settings.CHUNKER_STRATEGY
-        collection = f"deepvault_{strategy}"
-        _cache["vector_store"] = QdrantVectorStore(collection_name=collection)
-    return _cache["vector_store"]
+async def get_qdrant_client() -> AsyncQdrantClient:
+    """Singleton for the shared Qdrant connection pool."""
+    if "qdrant_client" not in _cache:
+        if settings.QDRANT_HOST and settings.QDRANT_HOST != "local":
+            url = f"http://{settings.QDRANT_HOST}:{settings.QDRANT_PORT}"
+            _cache["qdrant_client"] = AsyncQdrantClient(url=url)
+        else:
+            _cache["qdrant_client"] = AsyncQdrantClient(path="qdrant_storage")
+    return _cache["qdrant_client"]
+
+
+async def get_vector_store(strategy: str | None = None) -> QdrantVectorStore:
+    """
+    Factory for Qdrant storage.
+    Supports JIT (Just-In-Time) initialization of strategy-specific collections.
+    """
+    # 1. Determine the exact collection namespace
+    effective_strategy = strategy or settings.CHUNKER_STRATEGY
+    collection = f"deepvault_{effective_strategy}"
+    cache_key = f"vstore_{collection}"
+    
+    if cache_key not in _cache:
+        client = await get_qdrant_client()
+        embedder = await get_embedder()
+        
+        # 2. Instantiate the store with the shared client
+        vstore = QdrantVectorStore(collection_name=collection, client=client)
+        
+        # 3. JIT Initialization (Ensures the collection exists with right dims)
+        # This only adds ~10ms overhead after the first call per strategy
+        await vstore.initialize(vector_size=embedder.get_dimension())
+        
+        _cache[cache_key] = vstore
+        
+    return _cache[cache_key]
 
 
 async def get_llm_client() -> GroqLLMClient:
@@ -130,35 +167,51 @@ async def get_document_service() -> DocumentService:
 
 
 async def initialize_all():
-    """Starts up all database connections and models (Called at API start)."""
-    logger.info("Initializing all DeepVault global dependencies...")
+    """Starts up core infrastructure connections (Called at API start)."""
+    logger.info("Initializing DeepVault core backbone...")
 
+    # 1. Warm up core infrastructure (Synchronous dependencies)
     doc_store = await get_doc_store()
-    vstore = await get_vector_store()
     redis_cache = await get_redis_cache()
-    embedder = await get_embedder()
-
+    
     await doc_store.initialize()
-    await vstore.initialize(vector_size=embedder.get_dimension())
     await redis_cache.initialize()
 
-    logger.info("DeepVault dependencies ready.")
+    # 2. Warm up the shared Qdrant connection pool
+    await get_qdrant_client()
+
+    # 3. Warm up the default strategy
+    await get_vector_store()
+
+    logger.info("DeepVault core ready. Background workers initialized.")
 
 
 async def shutdown_all():
     """Safely closes all database connections (Called at API stop)."""
     logger.info("Shutting down DeepVault dependencies...")
+    
+    if "qdrant_client" in _cache:
+        await _cache["qdrant_client"].close()
+        logger.info("Closed Qdrant connection pool.")
+        
     if "doc_store" in _cache:
         await _cache["doc_store"].close()
-    if "vector_store" in _cache:
-        await _cache["vector_store"].close()
     if "redis_cache" in _cache:
         await _cache["redis_cache"].close()
+
+    if "executor" in _cache:
+        _cache["executor"].shutdown(wait=False)
+        logger.info("Compute workers released.")
+        
     clear_cache()
     logger.info("Shutdown complete.")
 
 
 def clear_cache():
     """Manually resets singleton cache - useful for multi-pass seating/testing."""
+    # Note: We preserve the executor to avoid thread-leakage during reloads
+    temp_executor = _cache.get("executor")
     _cache.clear()
+    if temp_executor:
+        _cache["executor"] = temp_executor
     logger.info("Dependency cache cleared.")

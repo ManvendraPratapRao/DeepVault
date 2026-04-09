@@ -20,7 +20,9 @@ class VectorRetriever(BaseRetriever):
         self.embedder = embedder
         self.vector_store = vector_store
 
-    async def retrieve(self, query: str, top_k: int = 5, filters: dict | None = None) -> list[Chunk]:
+    async def retrieve(
+        self, query: str, top_k: int = 5, filters: dict | None = None, collection_name: str | None = None
+    ) -> list[Chunk]:
         """
         The core retrieval logic:
         1. Embed the query
@@ -28,15 +30,17 @@ class VectorRetriever(BaseRetriever):
         3. Return the results
         """
         logger.info(
-            f"Retrieving context for query: {query[:50]}...",
-            extra={"extra_fields": {"top_k": top_k}},
+            f"Retrieving context for query: {query[:50]}... [Collection: {collection_name or 'Default'}]",
+            extra={"extra_fields": {"top_k": top_k, "collection_name": collection_name}},
         )
 
         # 1. Turn text into a vector
         query_vector = await self.embedder.embed_text(query)
 
         # 2. Search the database
-        results = await self.vector_store.search(query_vector=query_vector, top_k=top_k, filters=filters)
+        results = await self.vector_store.search(
+            query_vector=query_vector, top_k=top_k, filters=filters, collection_name=collection_name
+        )
 
         logger.info(f"Found {len(results)} relevant chunks.")
         return results

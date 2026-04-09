@@ -1,10 +1,14 @@
-.PHONY: run dev test test-cov seed eval lint lint-fix typecheck docker-up docker-down
+.PHONY: run dev ui test test-cov seed eval lint lint-fix typecheck docker-up docker-down
 
 run:
 	uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 dev:
 	uv run uvicorn app.main:app --reload --port 8000
+
+ui:
+	uv run streamlit run app/ui/dashboard.py
+
 
 test:
 	uv run pytest -v --tb=short

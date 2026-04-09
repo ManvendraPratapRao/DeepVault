@@ -41,8 +41,20 @@ class QueryService:
                 return cached_resp
 
         # 2. Retrieve relevant chunks from the Vector Store
-        # We use top_k=5 as the default for high-quality context
-        chunks = await self.retriever.retrieve(query=request.query_text, top_k=5, filters=request.filters)
+        # We target the strategy-specific collection if requested
+        collection_name = f"deepvault_{request.strategy}" if request.strategy else None
+        
+        logger.info(
+            f"Strategy Routing: {request.strategy or 'default'} -> {collection_name or 'Default'}",
+            extra={"extra_fields": {"strategy": request.strategy, "collection": collection_name}}
+        )
+        
+        chunks = await self.retriever.retrieve(
+            query=request.query_text, 
+            top_k=request.top_k, 
+            filters=request.filters,
+            collection_name=collection_name
+        )
 
         # 2. Handle empty retrieval (Production Safety)
         if not chunks:
@@ -64,7 +76,8 @@ class QueryService:
 
         # 5. Generate the Answer via LLM (Groq)
         # We pass our specialized RAG_SYSTEM_PROMPT to ensure groundedness
-        answer = await self.llm_client.generate(prompt=final_user_prompt, system_prompt=RAG_SYSTEM_PROMPT)
+        # This now returns a structured LLMResult with telemetry
+        llm_result = await self.llm_client.generate(prompt=final_user_prompt, system_prompt=RAG_SYSTEM_PROMPT)
 
         # 6. Finalize Performance Metrics
         latency_ms = (time.perf_counter() - start_time) * 1000
@@ -77,11 +90,19 @@ class QueryService:
                     "latency_ms": latency_ms,
                     "num_sources": len(chunks),
                     "cache_miss": True,
+                    "prompt_tokens": llm_result.usage.prompt_tokens,
+                    "completion_tokens": llm_result.usage.completion_tokens,
                 }
             },
         )
 
-        response = QueryResponse(answer=answer, sources=chunks, latency_ms=latency_ms, request_id=request_id)
+        response = QueryResponse(
+            answer=llm_result.answer, 
+            sources=chunks, 
+            usage=llm_result.usage,
+            latency_ms=latency_ms, 
+            request_id=request_id
+        )
 
         # 7. Cache the semantic result to radically speed up identical future questions
         if self.cache_service:

@@ -1,3 +1,4 @@
+from typing import Any
 from sentence_transformers import SentenceTransformer
 
 from app.config import settings
@@ -19,6 +20,17 @@ class BgeEmbedder(BaseEmbedder):
 
         # BGE models work best with specific instructions for retrieval
         self.instruction = "Represent this sentence for searching relevant passages: "
+        
+        # Force CPU to prevent silent CUDA hangs during this stabilization phase
+        self.model.to("cpu")
+        logger.info("BgeEmbedder heart-rate stabilized on CPU.")
+
+    async def _encode(self, texts: str | list[str]) -> Any:
+        """Offload synchronous model compute to a thread pool to avoid blocking the event loop."""
+        import asyncio
+        loop = asyncio.get_event_loop()
+        # We use the default executor (which we reinforced in dependencies.py)
+        return await loop.run_in_executor(None, lambda: self.model.encode(texts, convert_to_numpy=True).tolist())
 
     async def embed_text(self, text: str) -> list[float]:
         """Embed a query (with instruction prefix)."""
@@ -29,7 +41,7 @@ class BgeEmbedder(BaseEmbedder):
             if cached:
                 return cached
 
-        embedding = self.model.encode(full_text, convert_to_numpy=True).tolist()
+        embedding = await self._encode(full_text)
 
         if self.cache_service:
             await self.cache_service.cache_embedding(full_text, embedding)
@@ -57,7 +69,7 @@ class BgeEmbedder(BaseEmbedder):
 
         # 2. Compute embeddings for misses
         if uncached_texts:
-            new_embeddings = self.model.encode(uncached_texts, convert_to_numpy=True).tolist()
+            new_embeddings = await self._encode(uncached_texts)
 
             # 3. Merge back and cache newly computed
             for idx, emb, txt in zip(uncached_indices, new_embeddings, uncached_texts):

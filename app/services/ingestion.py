@@ -63,10 +63,26 @@ class IngestionService:
         for i, chunk in enumerate(chunks):
             chunk.embedding = embeddings[i]
 
-        # 6. Store in both databases (The "Double Write")
-        # We store metadata in SQLite first, then chunks in Qdrant
-        await self.doc_store.upsert_document(doc)
-        await self.vector_store.upsert_chunks(chunks)
+        # 6. Atomic Storage (The "Sanctity of the Index")
+        # We use an inverted write strategy to prevent "Phantom Metadata"
+        try:
+            # First, commit to the Vector Store (The most volatile part)
+            await self.vector_store.upsert_chunks(chunks)
+            
+            try:
+                # Second, finalize the Metadata (The final record of truth)
+                await self.doc_store.upsert_document(doc)
+            except Exception as e:
+                # Cleanup: If Metadata fails, remove the "Orphaned" chunks from Qdrant
+                logger.error(f"Metadata write failed. Cleaning up {len(chunks)} orphaned chunks from Qdrant.")
+                await self.vector_store.delete_by_doc_id(doc.id)
+                raise IngestionError(f"Critical Metadata Fault: {str(e)}") from e
+
+        except Exception as e:
+            if isinstance(e, IngestionError):
+                raise
+            logger.error(f"Vector storage failed: {str(e)}")
+            raise IngestionError(f"Vector Storage Fault: {str(e)}") from e
 
         latency_ms = (time.perf_counter() - start_time) * 1000
         logger.info(
