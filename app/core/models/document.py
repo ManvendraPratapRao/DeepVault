@@ -33,7 +33,8 @@ class Chunk(BaseModel):
     document_id: str
     content: str
     chunk_index: int  # Essential for neighbor retrieval(if ever used)
+    score: float | None = None
     embedding: list[float] | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, from_attributes=True)

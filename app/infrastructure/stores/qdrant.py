@@ -102,10 +102,12 @@ class QdrantVectorStore(BaseVectorStore):
                 conditions.append(FieldCondition(key=key, match=MatchValue(value=value)))
             qdrant_filter = Filter(must=conditions)
 
-        # Results are returned using the high-compatibility search API
-        results = await self.client.search(
+        # Modern Qdrant SDK (1.1x+) uses the consolidated query_points API.
+        # This replaces the deprecated and removed .search() method.
+        # Senior Dev Tip: We use 'query' instead of 'query_vector' and handle the modern response object.
+        response = await self.client.query_points(
             collection_name=target_collection,
-            query_vector=query_vector,
+            query=query_vector,
             limit=top_k,
             query_filter=qdrant_filter,
             with_payload=True,
@@ -117,13 +119,14 @@ class QdrantVectorStore(BaseVectorStore):
                 document_id=point.payload["document_id"],
                 content=point.payload["content"],
                 chunk_index=point.payload["chunk_index"],
+                score=point.score,
                 metadata={
                     k: v
                     for k, v in point.payload.items()
                     if k not in ["document_id", "content", "chunk_index"]
                 },
             )
-            for point in results
+            for point in response.points
         ]
 
     async def delete_by_doc_id(self, doc_id: str) -> None:

@@ -57,7 +57,8 @@ async def get_chunker():
         strategy = settings.CHUNKER_STRATEGY
         if strategy == "sliding":
             _cache["chunker"] = SlidingWindowChunker(
-                window_size=settings.CHUNKER_SIZE, stride=400
+                window_size=settings.CHUNKER_SIZE, 
+                stride=settings.CHUNKER_SIZE - settings.CHUNKER_OVERLAP
             )
         elif strategy == "semantic":
             embedder = await get_embedder()
@@ -95,7 +96,18 @@ async def get_qdrant_client() -> AsyncQdrantClient:
             _cache["qdrant_client"] = AsyncQdrantClient(url=url)
         else:
             _cache["qdrant_client"] = AsyncQdrantClient(path="qdrant_storage")
-    return _cache["qdrant_client"]
+    
+    # 🕵️ Security Safety: Ensure the client wasn't closed by a previous pass
+    client = _cache["qdrant_client"]
+    try:
+        if hasattr(client, "_client") and hasattr(client._client, "is_closed") and client._client.is_closed:
+            logger.warning("Detected closed Qdrant client in cache. Re-initializing.")
+            del _cache["qdrant_client"]
+            return await get_qdrant_client()
+    except Exception:
+        pass
+
+    return client
 
 
 async def get_vector_store(strategy: str | None = None) -> QdrantVectorStore:
@@ -192,7 +204,8 @@ async def shutdown_all():
     
     if "qdrant_client" in _cache:
         await _cache["qdrant_client"].close()
-        logger.info("Closed Qdrant connection pool.")
+        del _cache["qdrant_client"]
+        logger.info("Closed and released Qdrant connection pool.")
         
     if "doc_store" in _cache:
         await _cache["doc_store"].close()

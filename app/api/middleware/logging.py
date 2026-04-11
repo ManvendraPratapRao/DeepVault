@@ -49,9 +49,18 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             return response
 
         except Exception as e:
+            import traceback
             process_time = (time.perf_counter() - start_time) * 1000
+            error_trace = traceback.format_exc()
             logger.error(
-                f"Unhandled error: {str(e)}",
-                extra={"extra_fields": {"request_id": request_id, "latency_ms": process_time}},
+                f"Unhandled Exception in DeepVault Pipe: {str(e)}",
+                extra={
+                    "extra_fields": {
+                        "request_id": request_id, 
+                        "latency_ms": process_time,
+                        "traceback": error_trace
+                    }
+                },
             )
+            # Re-raise so the global exception handler in main.py can normalize it
             raise

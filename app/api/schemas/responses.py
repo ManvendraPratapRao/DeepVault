@@ -1,23 +1,25 @@
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class SourceChunk(BaseModel):
     """A safe subset of a Chunk used for citations in the API."""
-
+    id: str  # Added for unique identification in the UI
     content: str
     document_id: str
     chunk_index: int
+    score: float | None = None
     metadata: dict[str, Any]
 
+    model_config = ConfigDict(from_attributes=True)
 
-class TokenUsage(BaseModel):
-    """Telemetry for LLM cost and context-window monitoring."""
 
-    prompt_tokens: int = Field(default=0)
-    completion_tokens: int = Field(default=0)
-    total_tokens: int = Field(default=0)
+from app.core.models.query import TokenUsage as CoreTokenUsage
+
+class TokenUsage(CoreTokenUsage):
+    """API-facing TokenUsage (Inherits from Core)."""
+    pass
 
 
 class IngestResponse(BaseModel):

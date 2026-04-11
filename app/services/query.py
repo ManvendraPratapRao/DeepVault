@@ -71,16 +71,27 @@ class QueryService:
         context_str = "\n\n---\n\n".join(context_blocks)
 
         # 4. Build the Final Prompt
-        # RAG_USER_TEMPLATE expects {context} and {question}
-        final_user_prompt = RAG_USER_TEMPLATE.format(context=context_str, question=request.query_text)
+        # We manually replace {context} and {question} to avoid crashes if papers have braces.
+        final_user_prompt = RAG_USER_TEMPLATE.replace("{context}", context_str).replace("{question}", request.query_text)
 
         # 5. Generate the Answer via LLM (Groq)
         # We pass our specialized RAG_SYSTEM_PROMPT to ensure groundedness
         # This now returns a structured LLMResult with telemetry
         llm_result = await self.llm_client.generate(prompt=final_user_prompt, system_prompt=RAG_SYSTEM_PROMPT)
 
-        # 6. Finalize Performance Metrics
+        # 6. Finalize Performance Metrics and Sanitize Metadata
         latency_ms = (time.perf_counter() - start_time) * 1000
+
+        # High-Availability Sanitization: Ensure metadata is JSON serializable
+        # Senior Dev Tip: We convert datetime objects and other complex types to strings here
+        # to prevent 500 errors during final pydantic validation/serialization.
+        for chunk in chunks:
+            if hasattr(chunk, 'metadata') and isinstance(chunk.metadata, dict):
+                for k, v in chunk.metadata.items():
+                    if hasattr(v, 'isoformat'): # Handle datetime objects
+                        chunk.metadata[k] = v.isoformat()
+                    elif not isinstance(v, (str, int, float, bool, list, dict, type(None))):
+                        chunk.metadata[k] = str(v)
 
         logger.info(
             "Query answered successfully (Cache Miss)",

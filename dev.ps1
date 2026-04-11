@@ -1,26 +1,23 @@
 param (
-    [switch]$UI,          # Start the Streamlit Dashboard
-    [switch]$DockerOnly   # Only start Qdrant/Redis
+    [switch]$UI
 )
 
-# 1. Start Infrastructure
-Write-Host "`n🚀 Starting DeepVault Infrastructure (Qdrant & Redis)..." -ForegroundColor Cyan
-docker compose -f docker/docker-compose.yml up -d
+# Environment
+$env:PYTHONPATH = "."
+$env:PYTHONUTF8 = 1
 
-if ($DockerOnly) {
-    Write-Host "✅ Infrastructure is up. Exiting as requested." -ForegroundColor Green
-    exit
-}
+# Infra
+Write-Host "Starting Infra..."
+docker compose -f docker/docker-compose.yml up -d redis qdrant
 
-# 2. Start UI in background if requested
+# API
+Write-Host "Starting Hardened API..."
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "uv run uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+# UI
 if ($UI) {
-    Write-Host "🎨 Launching DeepVault Arena (Streamlit)..." -ForegroundColor Magenta
-    Start-Process powershell -ArgumentList "-NoExit", "-Command", "`$env:PYTHONPATH='.'; uv run streamlit run app/ui/dashboard.py"
-    Write-Host "   -> Access Arena at: http://localhost:8501" -ForegroundColor Gray
+    Write-Host "Starting Arena UI..."
+    Start-Process powershell -ArgumentList "-NoExit", "-Command", "uv run streamlit run app/ui/dashboard.py"
 }
 
-# 3. Start API (Blocking)
-Write-Host "🔥 Launching DeepVault API Server..." -ForegroundColor Green
-Write-Host "   -> Documentation: http://localhost:8000/docs" -ForegroundColor Yellow
-$env:PYTHONPATH="."
-uv run uvicorn app.main:app --reload --port 8000
+Write-Host "Ready."

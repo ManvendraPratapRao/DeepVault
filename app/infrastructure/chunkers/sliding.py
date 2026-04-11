@@ -12,7 +12,7 @@ class SlidingWindowChunker(BaseChunker):
     to avoid cutting sentences in half.
     """
 
-    def __init__(self, window_size: int = 1200, stride: int = 400):
+    def __init__(self, window_size: int = 600, stride: int = 480):
         self.window_size = window_size
         self.stride = stride
 

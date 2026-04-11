@@ -1,0 +1,217 @@
+﻿.venv\Scripts\python.exe : --- Logging error ---
+At line:1 char:1
++ .venv\Scripts\python.exe C:\Users\manve\.gemini\antigravity\brain\4a7 ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (--- Logging error ---:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Traceback (most recent call last):
+  File "C:\Users\manve\AppData\Roaming\uv\python\cpython-3.13.5-windows-x86_64-none\Lib\logging\__init__.py", line 
+1154, in emit
+    stream.write(msg + self.terminator)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\manve\AppData\Roaming\uv\python\cpython-3.13.5-windows-x86_64-none\Lib\encodings\cp1252.py", line 19, 
+in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\U0001f680' in position 79: character maps to <undefined>
+Call stack:
+  File "C:\Users\manve\.gemini\antigravity\brain\4a7e3c5c-1075-4fdb-ae85-2a3c80447464\scratch\verify_scores.py", line 
+91, in <module>
+    asyncio.run(run_score_verification())
+  File "C:\Users\manve\AppData\Roaming\uv\python\cpython-3.13.5-windows-x86_64-none\Lib\asyncio\runners.py", line 195, 
+in run
+    return runner.run(main)
+  File "C:\Users\manve\AppData\Roaming\uv\python\cpython-3.13.5-windows-x86_64-none\Lib\asyncio\runners.py", line 118, 
+in run
+    return self._loop.run_until_complete(task)
+  File "C:\Users\manve\AppData\Roaming\uv\python\cpython-3.13.5-windows-x86_64-none\Lib\asyncio\base_events.py", line 
+712, in run_until_complete
+    self.run_forever()
+  File "C:\Users\manve\AppData\Roaming\uv\python\cpython-3.13.5-windows-x86_64-none\Lib\asyncio\base_events.py", line 
+683, in run_forever
+    self._run_once()
+  File "C:\Users\manve\AppData\Roaming\uv\python\cpython-3.13.5-windows-x86_64-none\Lib\asyncio\base_events.py", line 
+2042, in _run_once
+    handle._run()
+  File "C:\Users\manve\AppData\Roaming\uv\python\cpython-3.13.5-windows-x86_64-none\Lib\asyncio\events.py", line 89, 
+in _run
+    self._context.run(self._callback, *self._args)
+  File "C:\Users\manve\.gemini\antigravity\brain\4a7e3c5c-1075-4fdb-ae85-2a3c80447464\scratch\verify_scores.py", line 
+19, in run_score_verification
+    logger.info("\U0001f680 Starting Score Retrieval Verification...")
+Message: '\U0001f680 Starting Score Retrieval Verification...'
+Arguments: ()
+{"timestamp": "2026-04-10T16:14:11.199075+00:00", "level": "INFO", "message": "Initializing BgeEmbedder with model: BAAI/bge-small-en-v1.5", "module": "bge", "function": "__init__"}
+{"timestamp": "2026-04-10T16:14:11.208368+00:00", "level": "INFO", "message": "Use pytorch device_name: cpu", "module": "SentenceTransformer", "function": "__init__"}
+{"timestamp": "2026-04-10T16:14:11.208735+00:00", "level": "INFO", "message": "Load pretrained SentenceTransformer: BAAI/bge-small-en-v1.5", "module": "SentenceTransformer", "function": "__init__"}
+{"timestamp": "2026-04-10T16:14:12.878843+00:00", "level": "INFO", "message": "HTTP Request: HEAD https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/modules.json \"HTTP/1.1 307 Temporary Redirect\"", "module": "_client", "function": "_send_single_request"}
+{"timestamp": "2026-04-10T16:14:12.904470+00:00", "level": "INFO", "message": "HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/BAAI/bge-small-en-v1.5/5c38ec7c405ec4b44b94cc5a9bb96e735b38267a/modules.json \"HTTP/1.1 200 OK\"", "module": "_client", "function": "_send_single_request"}
+{"timestamp": "2026-04-10T16:14:13.173705+00:00", "level": "INFO", "message": "HTTP Request: HEAD https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/config_sentence_transformers.json \"HTTP/1.1 307 Temporary Redirect\"", "module": "_client", "function": "_send_single_request"}
+{"timestamp": "2026-04-10T16:14:13.207241+00:00", "level": "INFO", "message": "HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/BAAI/bge-small-en-v1.5/5c38ec7c405ec4b44b94cc5a9bb96e735b38267a/config_sentence_transformers.json \"HTTP/1.1 200 OK\"", "module": "_client", "function": "_send_single_request"}
+{"timestamp": "2026-04-10T16:14:13.485468+00:00", "level": "INFO", "message": "HTTP Request: HEAD https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/config_sentence_transformers.json \"HTTP/1.1 307 Temporary Redirect\"", "module": "_client", "function": "_send_single_request"}
+{"timestamp": "2026-04-10T16:14:13.524494+00:00", "level": "INFO", "message": "HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/BAAI/bge-small-en-v1.5/5c38ec7c405ec4b44b94cc5a9bb96e735b38267a/config_sentence_transformers.json \"HTTP/1.1 200 OK\"", "module": "_client", "function": "_send_single_request"}
+{"timestamp": "2026-04-10T16:14:13.802985+00:00", "level": "INFO", "message": "HTTP Request: HEAD https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/README.md \"HTTP/1.1 307 Temporary Redirect\"", "module": "_client", "function": "_send_single_request"}
+{"timestamp": "2026-04-10T16:14:13.832834+00:00", "level": "INFO", "message": "HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/BAAI/bge-small-en-v1.5/5c38ec7c405ec4b44b94cc5a9bb96e735b38267a/README.md \"HTTP/1.1 200 OK\"", "module": "_client", "function": "_send_single_request"}
+{"timestamp": "2026-04-10T16:14:14.108590+00:00", "level": "INFO", "message": "HTTP Request: HEAD https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/modules.json \"HTTP/1.1 307 Temporary Redirect\"", "module": "_client", "function": "_send_single_request"}
+{"timestamp": "2026-04-10T16:14:14.429556+00:00", "level": "INFO", "message": "HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/BAAI/bge-small-en-v1.5/5c38ec7c405ec4b44b94cc5a9bb96e735b38267a/modules.json \"HTTP/1.1 200 OK\"", "module": "_client", "function": "_send_single_request"}
+{"timestamp": "2026-04-10T16:14:14.749322+00:00", "level": "INFO", "message": "HTTP Request: HEAD https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/sentence_bert_config.json \"HTTP/1.1 307 Temporary Redirect\"", "module": "_client", "function": "_send_single_request"}
+{"timestamp": "2026-04-10T16:14:14.819931+00:00", "level": "INFO", "message": "HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/BAAI/bge-small-en-v1.5/5c38ec7c405ec4b44b94cc5a9bb96e735b38267a/sentence_bert_config.json \"HTTP/1.1 200 OK\"", "module": "_client", "function": "_send_single_request"}
+{"timestamp": "2026-04-10T16:14:15.121752+00:00", "level": "INFO", "message": "HTTP Request: HEAD https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/adapter_config.json \"HTTP/1.1 404 Not Found\"", "module": "_client", "function": "_send_single_request"}
+{"timestamp": "2026-04-10T16:14:15.386596+00:00", "level": "INFO", "message": "HTTP Request: HEAD https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/config.json \"HTTP/1.1 307 Temporary Redirect\"", "module": "_client", "function": "_send_single_request"}
+{"timestamp": "2026-04-10T16:14:15.419643+00:00", "level": "INFO", "message": "HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/BAAI/bge-small-en-v1.5/5c38ec7c405ec4b44b94cc5a9bb96e735b38267a/config.json \"HTTP/1.1 200 OK\"", "module": "_client", "function": "_send_single_request"}
+
+Loading weights:   0%|          | 0/199 [00:00<?, ?it/s]
+Loading weights:  82%|########1 | 163/199 [00:00<00:00, 1629.84it/s]
+Loading weights: 100%|##########| 199/199 [00:00<00:00, 1795.63it/s]
+[1mBertModel LOAD REPORT[0m from: BAAI/bge-small-en-v1.5
+Key                     | Status     |  | 
+------------------------+------------+--+-
+embeddings.position_ids | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+{"timestamp": "2026-04-10T16:14:16.728914+00:00", "level": "INFO", "message": "HTTP Request: HEAD https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/config.json \"HTTP/1.1 307 Temporary Redirect\"", "module": "_client", "function": "_send_single_request"}
+{"timestamp": "2026-04-10T16:14:16.755157+00:00", "level": "INFO", "message": "HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/BAAI/bge-small-en-v1.5/5c38ec7c405ec4b44b94cc5a9bb96e735b38267a/config.json \"HTTP/1.1 200 OK\"", "module": "_client", "function": "_send_single_request"}
+{"timestamp": "2026-04-10T16:14:17.047931+00:00", "level": "INFO", "message": "HTTP Request: HEAD https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/tokenizer_config.json \"HTTP/1.1 307 Temporary Redirect\"", "module": "_client", "function": "_send_single_request"}
+{"timestamp": "2026-04-10T16:14:17.078561+00:00", "level": "INFO", "message": "HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/BAAI/bge-small-en-v1.5/5c38ec7c405ec4b44b94cc5a9bb96e735b38267a/tokenizer_config.json \"HTTP/1.1 200 OK\"", "module": "_client", "function": "_send_single_request"}
+{"timestamp": "2026-04-10T16:14:17.362522+00:00", "level": "INFO", "message": "HTTP Request: GET https://huggingface.co/api/models/BAAI/bge-small-en-v1.5/tree/main/additional_chat_templates?recursive=false&expand=false \"HTTP/1.1 404 Not Found\"", "module": "_client", "function": "_send_single_request"}
+{"timestamp": "2026-04-10T16:14:17.670288+00:00", "level": "INFO", "message": "HTTP Request: GET https://huggingface.co/api/models/BAAI/bge-small-en-v1.5/tree/main?recursive=true&expand=false \"HTTP/1.1 200 OK\"", "module": "_client", "function": "_send_single_request"}
+{"timestamp": "2026-04-10T16:14:18.272985+00:00", "level": "INFO", "message": "HTTP Request: HEAD https://huggingface.co/BAAI/bge-small-en-v1.5/resolve/main/1_Pooling/config.json \"HTTP/1.1 307 Temporary Redirect\"", "module": "_client", "function": "_send_single_request"}
+{"timestamp": "2026-04-10T16:14:18.327913+00:00", "level": "INFO", "message": "HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/BAAI/bge-small-en-v1.5/5c38ec7c405ec4b44b94cc5a9bb96e735b38267a/1_Pooling%2Fconfig.json \"HTTP/1.1 200 OK\"", "module": "_client", "function": "_send_single_request"}
+{"timestamp": "2026-04-10T16:14:18.613309+00:00", "level": "INFO", "message": "HTTP Request: GET https://huggingface.co/api/models/BAAI/bge-small-en-v1.5 \"HTTP/1.1 200 OK\"", "module": "_client", "function": "_send_single_request"}
+{"timestamp": "2026-04-10T16:14:18.717965+00:00", "level": "INFO", "message": "BgeEmbedder heart-rate stabilized on CPU.", "module": "bge", "function": "__init__"}
+{"timestamp": "2026-04-10T16:14:19.818101+00:00", "level": "INFO", "message": "Qdrant Vector Store instantiated over Network HTTP: http://localhost:6333 [Collection: score_test]", "module": "qdrant", "function": "__init__"}
+{"timestamp": "2026-04-10T16:14:20.839205+00:00", "level": "INFO", "message": "HTTP Request: GET http://localhost:6333 \"HTTP/1.1 200 OK\"", "module": "_client", "function": "_send_single_request"}
+{"timestamp": "2026-04-10T16:14:20.840700+00:00", "level": "INFO", "message": "HTTP Request: GET http://localhost:6333/collections \"HTTP/1.1 200 OK\"", "module": "_client", "function": "_send_single_request"}
+{"timestamp": "2026-04-10T16:14:20.851770+00:00", "level": "INFO", "message": "Qdrant collection score_test already exists.", "module": "qdrant", "function": "initialize"}
+{"timestamp": "2026-04-10T16:14:20.852351+00:00", "level": "INFO", "message": "--- Ingesting sample text ---", "module": "verify_scores", "function": "run_score_verification"}
+
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]
+Batches: 100%|##########| 1/1 [00:00<00:00,  2.63it/s]
+Batches: 100%|##########| 1/1 [00:00<00:00,  2.63it/s]
+{"timestamp": "2026-04-10T16:14:21.335686+00:00", "level": "INFO", "message": "HTTP Request: PUT http://localhost:6333/collections/score_test/points?wait=true \"HTTP/1.1 200 OK\"", "module": "_client", "function": "_send_single_request"}
+{"timestamp": "2026-04-10T16:14:21.337758+00:00", "level": "INFO", "message": "Upserted 1 points to Qdrant.", "module": "qdrant", "function": "upsert_chunks"}
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Users\manve\AppData\Roaming\uv\python\cpython-3.13.5-windows-x86_64-none\Lib\logging\__init__.py", line 
+1154, in emit
+    stream.write(msg + self.terminator)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\manve\AppData\Roaming\uv\python\cpython-3.13.5-windows-x86_64-none\Lib\encodings\cp1252.py", line 19, 
+in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2705' in position 79: character maps to <undefined>
+Call stack:
+  File "C:\Users\manve\.gemini\antigravity\brain\4a7e3c5c-1075-4fdb-ae85-2a3c80447464\scratch\verify_scores.py", line 
+91, in <module>
+    asyncio.run(run_score_verification())
+  File "C:\Users\manve\AppData\Roaming\uv\python\cpython-3.13.5-windows-x86_64-none\Lib\asyncio\runners.py", line 195, 
+in run
+    return runner.run(main)
+  File "C:\Users\manve\AppData\Roaming\uv\python\cpython-3.13.5-windows-x86_64-none\Lib\asyncio\runners.py", line 118, 
+in run
+    return self._loop.run_until_complete(task)
+  File "C:\Users\manve\AppData\Roaming\uv\python\cpython-3.13.5-windows-x86_64-none\Lib\asyncio\base_events.py", line 
+712, in run_until_complete
+    self.run_forever()
+  File "C:\Users\manve\AppData\Roaming\uv\python\cpython-3.13.5-windows-x86_64-none\Lib\asyncio\base_events.py", line 
+683, in run_forever
+    self._run_once()
+  File "C:\Users\manve\AppData\Roaming\uv\python\cpython-3.13.5-windows-x86_64-none\Lib\asyncio\base_events.py", line 
+2042, in _run_once
+    handle._run()
+  File "C:\Users\manve\AppData\Roaming\uv\python\cpython-3.13.5-windows-x86_64-none\Lib\asyncio\events.py", line 89, 
+in _run
+    self._context.run(self._callback, *self._args)
+  File "C:\Users\manve\.gemini\antigravity\brain\4a7e3c5c-1075-4fdb-ae85-2a3c80447464\scratch\verify_scores.py", line 
+67, in run_score_verification
+    logger.info(f"\u2705 Upserted {len(chunks)} chunks to Qdrant.")
+Message: '\u2705 Upserted 1 chunks to Qdrant.'
+Arguments: ()
+{"timestamp": "2026-04-10T16:14:21.341938+00:00", "level": "INFO", "message": "--- Testing Retrieval Scores ---", "module": "verify_scores", "function": "run_score_verification"}
+{"timestamp": "2026-04-10T16:14:21.342105+00:00", "level": "INFO", "message": "Retrieving context for query: What is the secret code?... [Collection: score_test]", "module": "vector", "function": "retrieve", "top_k": 2, "collection_name": "score_test"}
+
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]
+Batches: 100%|##########| 1/1 [00:00<00:00, 12.94it/s]
+{"timestamp": "2026-04-10T16:14:21.486769+00:00", "level": "INFO", "message": "HTTP Request: POST http://localhost:6333/collections/score_test/points/query \"HTTP/1.1 200 OK\"", "module": "_client", "function": "_send_single_request"}
+{"timestamp": "2026-04-10T16:14:21.489086+00:00", "level": "INFO", "message": "Found 1 relevant chunks.", "module": "vector", "function": "retrieve"}
+{"timestamp": "2026-04-10T16:14:21.489234+00:00", "level": "INFO", "message": "Chunk 1 Score: 0.6969456", "module": "verify_scores", "function": "run_score_verification"}
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Users\manve\AppData\Roaming\uv\python\cpython-3.13.5-windows-x86_64-none\Lib\logging\__init__.py", line 
+1154, in emit
+    stream.write(msg + self.terminator)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\manve\AppData\Roaming\uv\python\cpython-3.13.5-windows-x86_64-none\Lib\encodings\cp1252.py", line 19, 
+in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2705' in position 79: character maps to <undefined>
+Call stack:
+  File "C:\Users\manve\.gemini\antigravity\brain\4a7e3c5c-1075-4fdb-ae85-2a3c80447464\scratch\verify_scores.py", line 
+91, in <module>
+    asyncio.run(run_score_verification())
+  File "C:\Users\manve\AppData\Roaming\uv\python\cpython-3.13.5-windows-x86_64-none\Lib\asyncio\runners.py", line 195, 
+in run
+    return runner.run(main)
+  File "C:\Users\manve\AppData\Roaming\uv\python\cpython-3.13.5-windows-x86_64-none\Lib\asyncio\runners.py", line 118, 
+in run
+    return self._loop.run_until_complete(task)
+  File "C:\Users\manve\AppData\Roaming\uv\python\cpython-3.13.5-windows-x86_64-none\Lib\asyncio\base_events.py", line 
+712, in run_until_complete
+    self.run_forever()
+  File "C:\Users\manve\AppData\Roaming\uv\python\cpython-3.13.5-windows-x86_64-none\Lib\asyncio\base_events.py", line 
+683, in run_forever
+    self._run_once()
+  File "C:\Users\manve\AppData\Roaming\uv\python\cpython-3.13.5-windows-x86_64-none\Lib\asyncio\base_events.py", line 
+2042, in _run_once
+    handle._run()
+  File "C:\Users\manve\AppData\Roaming\uv\python\cpython-3.13.5-windows-x86_64-none\Lib\asyncio\events.py", line 89, 
+in _run
+    self._context.run(self._callback, *self._args)
+  File "C:\Users\manve\.gemini\antigravity\brain\4a7e3c5c-1075-4fdb-ae85-2a3c80447464\scratch\verify_scores.py", line 
+77, in run_score_verification
+    logger.info(f"\u2705 Chunk {i+1} has a valid score: {chunk.score * 100:.2f}%")
+Message: '\u2705 Chunk 1 has a valid score: 69.69%'
+Arguments: ()
+{"timestamp": "2026-04-10T16:14:21.491271+00:00", "level": "INFO", "message": "Qdrant Vector Store connection closed.", "module": "qdrant", "function": "close"}
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Users\manve\AppData\Roaming\uv\python\cpython-3.13.5-windows-x86_64-none\Lib\logging\__init__.py", line 
+1154, in emit
+    stream.write(msg + self.terminator)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\manve\AppData\Roaming\uv\python\cpython-3.13.5-windows-x86_64-none\Lib\encodings\cp1252.py", line 19, 
+in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2705' in position 79: character maps to <undefined>
+Call stack:
+  File "C:\Users\manve\.gemini\antigravity\brain\4a7e3c5c-1075-4fdb-ae85-2a3c80447464\scratch\verify_scores.py", line 
+91, in <module>
+    asyncio.run(run_score_verification())
+  File "C:\Users\manve\AppData\Roaming\uv\python\cpython-3.13.5-windows-x86_64-none\Lib\asyncio\runners.py", line 195, 
+in run
+    return runner.run(main)
+  File "C:\Users\manve\AppData\Roaming\uv\python\cpython-3.13.5-windows-x86_64-none\Lib\asyncio\runners.py", line 118, 
+in run
+    return self._loop.run_until_complete(task)
+  File "C:\Users\manve\AppData\Roaming\uv\python\cpython-3.13.5-windows-x86_64-none\Lib\asyncio\base_events.py", line 
+712, in run_until_complete
+    self.run_forever()
+  File "C:\Users\manve\AppData\Roaming\uv\python\cpython-3.13.5-windows-x86_64-none\Lib\asyncio\base_events.py", line 
+683, in run_forever
+    self._run_once()
+  File "C:\Users\manve\AppData\Roaming\uv\python\cpython-3.13.5-windows-x86_64-none\Lib\asyncio\base_events.py", line 
+2042, in _run_once
+    handle._run()
+  File "C:\Users\manve\AppData\Roaming\uv\python\cpython-3.13.5-windows-x86_64-none\Lib\asyncio\events.py", line 89, 
+in _run
+    self._context.run(self._callback, *self._args)
+  File "C:\Users\manve\.gemini\antigravity\brain\4a7e3c5c-1075-4fdb-ae85-2a3c80447464\scratch\verify_scores.py", line 
+88, in run_score_verification
+    logger.info("\u2705 Score Verification Complete!")
+Message: '\u2705 Score Verification Complete!'
+Arguments: ()

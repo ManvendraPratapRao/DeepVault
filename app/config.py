@@ -9,6 +9,7 @@ class Settings(BaseSettings):
 
     # Groq Settings
     GROQ_API_KEY: str
+    API_KEY: str = "deepvault_secret_key"
     GROQ_MODEL_NAME: str = "llama-3.1-8b-instant"
 
     # LLM Generation
@@ -31,10 +32,10 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL_NAME: str = "BAAI/bge-small-en-v1.5"
 
     # Chunker Defaults
-    CHUNKER_SIZE: int = 500
-    CHUNKER_OVERLAP: int = 100
+    CHUNKER_SIZE: int = 600
+    CHUNKER_OVERLAP: int = 120
     CHUNKER_STRATEGY: str = "fixed"  # "fixed" | "sliding" | "semantic" | "structure"
-    SEMANTIC_SIMILARITY_THRESHOLD: float = 0.75
+    SEMANTIC_SIMILARITY_THRESHOLD: float = 0.85
 
     # SQLite
     SQLITE_DB_PATH: str = "deepvault.db"

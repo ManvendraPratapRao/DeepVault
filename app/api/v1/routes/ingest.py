@@ -5,6 +5,8 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
+from app.api.dependencies import rate_limit_dependency
+from app.config import settings
 
 from app.api.schemas.requests import IngestTextRequest
 from app.api.schemas.responses import IngestResponse
@@ -17,7 +19,11 @@ router = APIRouter()
 
 
 @router.post("/text", response_model=IngestResponse)
-async def ingest_text(request: IngestTextRequest, service: IngestionService = Depends(get_ingestion_service)):
+async def ingest_text(
+    request: IngestTextRequest, 
+    service: IngestionService = Depends(get_ingestion_service),
+    _auth: str = Depends(rate_limit_dependency),
+):
     """Processes raw text directly into the system."""
     try:
         doc = await service.ingest_text(content=request.content, source=request.source, author=request.author)
@@ -38,10 +44,33 @@ async def ingest_text(request: IngestTextRequest, service: IngestionService = De
 
 
 @router.post("/file", response_model=IngestResponse)
-async def ingest_file(file: UploadFile = File(...), service: IngestionService = Depends(get_ingestion_service)):
+async def ingest_file(
+    file: UploadFile = File(...), 
+    service: IngestionService = Depends(get_ingestion_service),
+    _auth: str = Depends(rate_limit_dependency),
+):
     """Saves an uploaded file to a temp path and processes it."""
-    # Create a temp file to allow PyMuPDF or Path.read_text to access it
-    suffix = Path(file.filename).suffix
+    # 1. Security Check: File Size Validation
+    # We check the spool file size before copying
+    file.file.seek(0, 2)
+    file_size = file.file.tell()
+    file.file.seek(0)
+    
+    if file_size > settings.MAX_UPLOAD_SIZE_BYTES:
+        raise HTTPException(
+            status_code=413, 
+            detail=f"File too large. Maximum size is {settings.MAX_UPLOAD_SIZE_BYTES / (1024*1024)}MB"
+        )
+
+    # 2. Security Check: File Type Validation
+    suffix = Path(file.filename).suffix.lower()
+    if suffix not in settings.SUPPORTED_FILE_EXTENSIONS:
+        raise HTTPException(
+            status_code=415, 
+            detail=f"Unsupported file type '{suffix}'. Supported: {settings.SUPPORTED_FILE_EXTENSIONS}"
+        )
+
+    # 3. Process the file
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         shutil.copyfileobj(file.file, tmp)
         tmp_path = Path(tmp.name)

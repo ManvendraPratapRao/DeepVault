@@ -1,193 +1,83 @@
 import streamlit as st
-import httpx
-import asyncio
-import time
-from typing import List, Dict, Any
 
 # --- Page Configuration ---
 st.set_page_config(
-    page_title="DeepVault Arena | RAG Diagnostic Multi-Pass Lab",
-    page_icon="🧩",
+    page_title="DeepVault | RAG Control Center",
+    page_icon="🤖",
     layout="wide",
 )
 
-# --- Custom Styling (Premium Aesthetics) ---
+# --- Custom Styling ---
 st.markdown("""
 <style>
-    .stApp {
-        background-color: #0e1117;
-        color: #e0e0e0;
+    .main-header {
+        font-size: 3rem;
+        font-weight: 700;
+        background: -webkit-linear-gradient(#238636, #2ea043);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 0;
     }
-    .stChatMessage {
-        border-radius: 10px;
-        margin-bottom: 10px;
-        border: 1px solid #30363d;
-    }
-    .strategy-card {
-        background-color: #161b22;
-        padding: 15px;
-        border-radius: 10px;
-        border-left: 5px solid #238636;
-        margin-bottom: 20px;
-    }
-    .source-pill {
-        display: inline-block;
-        background-color: #21262d;
-        color: #58a6ff;
-        padding: 2px 8px;
-        border-radius: 12px;
-        font-size: 0.8em;
-        margin-right: 5px;
-        border: 1px solid #30363d;
-    }
-    .latency-tag {
+    .sub-header {
+        font-size: 1.5rem;
         color: #8b949e;
-        font-size: 0.85em;
-        font-family: monospace;
+        margin-top: -10px;
+        margin-bottom: 30px;
+    }
+    .feature-card {
+        background-color: #161b22;
+        padding: 30px;
+        border-radius: 15px;
+        border: 1px solid #30363d;
+        height: 100%;
+        transition: transform 0.3s ease;
+    }
+    .feature-card:hover {
+        transform: translateY(-5px);
+        border-color: #58a6ff;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# --- State Management ---
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+# --- Content ---
+st.markdown("<h1 class='main-header'>DeepVault</h1>", unsafe_allow_html=True)
+st.markdown("<p class='sub-header'>Autonomous AI Knowledge Platform & RAG Diagnostics</p>", unsafe_allow_html=True)
 
-# --- API Helpers ---
-async def query_strategy(
-    text: str, 
-    strategy: str, 
-    api_url: str, 
-    top_k: int = 5, 
-    temperature: float = 0.0
-) -> Dict[str, Any]:
-    """Call the DeepVault API for a specific chunking strategy."""
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        try:
-            payload = {
-                "query_text": text,
-                "strategy": strategy,
-                "top_k": top_k,
-                # Note: Currently our API might not accept temperature, 
-                # but we include it for future-proofing.
-            }
-            response = await client.post(f"{api_url}/api/v1/query", json=payload)
-            response.raise_for_status()
-            return response.json()
-        except Exception as e:
-            return {"error": str(e)}
+st.divider()
 
-# --- Sidebar: Control Center ---
-with st.sidebar:
-    st.title("🧩 DeepVault Arena")
-    st.subheader("Diagnostic Controls")
-    
-    API_URL = st.text_input("API Endpoint", value="http://localhost:8000")
-    
-    st.divider()
-    
-    COL1_STRATEGY = st.selectbox(
-        "Strategy A (Left Panel)", 
-        options=["fixed", "sliding", "structure", "semantic"],
-        index=0
-    )
-    
-    COL2_STRATEGY = st.selectbox(
-        "Strategy B (Right Panel)", 
-        options=["fixed", "sliding", "structure", "semantic"],
-        index=3
-    )
-    
-    st.divider()
-    
-    TOP_K = st.slider("Retrieval Depth (Top-K)", min_value=1, max_value=10, value=5)
-    TEMPERATURE = st.slider("LLM Temperature", min_value=0.0, max_value=1.0, value=0.0, step=0.1)
-    
-    if st.button("Clear Arena History"):
-        st.session_state.messages = []
-        st.rerun()
+col1, col2 = st.columns(2)
 
-# --- Main Arena ---
-st.header("RAG Strategy Battleground")
-st.caption("Compare how different chunking strategies impact retrieval grounding and answer quality.")
+with col1:
+    st.markdown("""
+    <div class='feature-card'>
+        <h3>🧩 Retriever Arena</h3>
+        <p>Live, side-by-side diagnostic tool to compare chunking strategies in real-time. 
+        Battle-test your query logic across Fixed, Sliding, Structure, and Semantic collections.</p>
+        <p><i>Use this to debug specific queries and visualize retrieval context.</i></p>
+    </div>
+    """, unsafe_allow_html=True)
+    if st.button("Go to Arena", use_container_width=True):
+        st.switch_page("pages/1_Retriever_Arena.py")
 
-# Display Chat History
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        if message["role"] == "user":
-            st.markdown(message["content"])
-        else:
-            # Display side-by-side results from history
-            col_a, col_b = st.columns(2)
-            with col_a:
-                st.markdown(f"**{message['strategy_a']['name'].upper()}**")
-                st.write(message['strategy_a']['answer'])
-            with col_b:
-                st.markdown(f"**{message['strategy_b']['name'].upper()}**")
-                st.write(message['strategy_b']['answer'])
+with col2:
+    st.markdown("""
+    <div class='feature-card'>
+        <h3>🧪 Metrics Laboratory</h3>
+        <p>Enterprise-grade benchmarking suite. Analyze Faithfulness, Relevance, and Latency (p95) 
+        across thousands of automated test cases using LLM-as-a-judge (Llama-3-70b).</p>
+        <p><i>Use this for structural evaluation and production readiness checks.</i></p>
+    </div>
+    """, unsafe_allow_html=True)
+    if st.button("Explore Laboratory", use_container_width=True):
+        st.switch_page("pages/2_Metrics_Laboratory.py")
 
-# Chat Input
-if prompt := st.chat_input("Ask a question about the synthesized corpus..."):
-    # Store user message
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
+st.divider()
 
-    # Trigger Generation
-    with st.chat_message("assistant"):
-        col_a, col_b = st.columns(2)
-        
-        with col_a:
-            st.info(f"Inference: {COL1_STRATEGY}...")
-            container_a = st.empty()
-        
-        with col_b:
-            st.info(f"Inference: {COL2_STRATEGY}...")
-            container_b = st.empty()
+st.subheader("System Status")
+c1, c2, c3, c4 = st.columns(4)
+c1.success("Vector Store: Connected")
+c2.success("LLM (Groq): Online")
+c3.info("Strategy: Hybrid-Active")
+c4.warning("Embedding: BGE-v1.5")
 
-        # Run both queries concurrently using an async wrapper to ensure loop is active
-        async def run_concurrent_queries():
-            return await asyncio.gather(
-                query_strategy(prompt, COL1_STRATEGY, API_URL, TOP_K, TEMPERATURE),
-                query_strategy(prompt, COL2_STRATEGY, API_URL, TOP_K, TEMPERATURE)
-            )
-
-        t0 = time.perf_counter()
-        res_a, res_b = asyncio.run(run_concurrent_queries())
-        t_total = time.perf_counter() - t0
-
-        # --- Render Column A ---
-        with col_a:
-            if "error" in res_a:
-                st.error(f"Error: {res_a['error']}")
-            else:
-                container_a.markdown(res_a["answer"])
-                st.markdown(f"<span class='latency-tag'>Latency: {res_a['latency_ms']:.1f}ms</span>", unsafe_allow_html=True)
-                
-                with st.expander(f"🔍 {COL1_STRATEGY} Context X-Ray"):
-                    for i, source in enumerate(res_a.get("sources", [])):
-                        st.markdown(f"**Chunk {i+1}** (Score: {source.get('score', 'N/A')})")
-                        st.caption(f"Source: {source['metadata'].get('source', 'Unknown')}")
-                        st.text_area(f"Content {i}", source["content"], height=150, key=f"a_{i}")
-                        st.divider()
-
-        # --- Render Column B ---
-        with col_b:
-            if "error" in res_b:
-                st.error(f"Error: {res_b['error']}")
-            else:
-                container_b.markdown(res_b["answer"])
-                st.markdown(f"<span class='latency-tag'>Latency: {res_b['latency_ms']:.1f}ms</span>", unsafe_allow_html=True)
-                
-                with st.expander(f"🔍 {COL2_STRATEGY} Context X-Ray"):
-                    for i, source in enumerate(res_b.get("sources", [])):
-                        st.markdown(f"**Chunk {i+1}** (Score: {source.get('score', 'N/A')})")
-                        st.caption(f"Source: {source['metadata'].get('source', 'Unknown')}")
-                        st.text_area(f"Content {i}", source["content"], height=150, key=f"b_{i}")
-                        st.divider()
-
-        # Store for session history
-        st.session_state.messages.append({
-            "role": "assistant",
-            "strategy_a": {"name": COL1_STRATEGY, "answer": res_a.get("answer", "Error")},
-            "strategy_b": {"name": COL2_STRATEGY, "answer": res_b.get("answer", "Error")}
-        })
+st.info("💡 **Tip**: Use the sidebar to navigate between toolsets. DeepVault is currently optimized for high-precision technical retrieval.")
