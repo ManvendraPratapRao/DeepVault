@@ -18,6 +18,7 @@ class SemanticChunker(BaseChunker):
     """
 
     def __init__(self, embedder, similarity_threshold: float = 0.85, min_chunk_size: int = 100):
+        self.strategy_name = "semantic"
         """
         Args:
             embedder: A BgeEmbedder instance. We use its internal model for sync encoding.
@@ -64,20 +65,30 @@ class SemanticChunker(BaseChunker):
             ]
 
         # Embed all sentences synchronously (this runs inside asyncio.to_thread)
-        embeddings = self.embedder.model.encode(sentences, show_progress_bar=False)
+        embeddings = self.embedder.model.encode(sentences, convert_to_numpy=True, show_progress_bar=False)
+
+        # Vectorized similarity calculation: compute cosine sim between consecutive sentences
+        # Shape of embeddings: (num_sentences, dim)
+        norms = np.linalg.norm(embeddings, axis=1)
+        # Avoid division by zero
+        norms[norms == 0] = 1e-9
+        
+        # Dot product of consecutive vectors
+        # embeddings[:-1] is sentences [0, n-1], embeddings[1:] is sentences [1, n]
+        dots = np.sum(embeddings[:-1] * embeddings[1:], axis=1)
+        similarities = dots / (norms[:-1] * norms[1:])
 
         # Group sentences by similarity
         groups: list[list[str]] = [[sentences[0]]]
 
-        for i in range(1, len(sentences)):
-            sim = self._cosine_similarity(embeddings[i - 1], embeddings[i])
-
+        for i, sim in enumerate(similarities):
+            # i corresponds to the similarity between sentences[i] and sentences[i+1]
             if sim < self.similarity_threshold:
                 # Topic shifted — start a new group
-                groups.append([sentences[i]])
+                groups.append([sentences[i + 1]])
             else:
                 # Same topic — keep grouping
-                groups[-1].append(sentences[i])
+                groups[-1].append(sentences[i + 1])
 
         # Merge tiny groups into their neighbors
         merged_groups: list[list[str]] = []

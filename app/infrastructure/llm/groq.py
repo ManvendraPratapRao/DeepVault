@@ -24,12 +24,12 @@ class GroqLLMClient(BaseLLMClient):
         self.model = settings.GROQ_MODEL_NAME
 
     @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=1, max=10),
+        stop=stop_after_attempt(5),
+        wait=wait_exponential(multiplier=1, min=2, max=60),
         retry=retry_if_exception_type((groq.RateLimitError, groq.APIConnectionError, groq.InternalServerError)),
         before_sleep=lambda retry_state: logger.warning(
-            f"Groq API call failed, retrying (attempt {retry_state.attempt_number}/3)...",
-            extra={"extra_fields": {"error": str(retry_state.outcome.exception())}},
+            f"Groq API call failed (Attempt {retry_state.attempt_number}/5). Retrying in {retry_state.next_action.sleep}s...",
+            extra={"extra_fields": {"error": str(retry_state.outcome.exception()), "model": retry_state.args[0] if len(retry_state.args) > 1 else "unknown"}},
         ),
     )
     async def generate(self, prompt: str, system_prompt: str | None = None) -> LLMResult:

@@ -56,7 +56,7 @@ trategies (Fixed, Sliding, Structure, Semantic) using a single command:
 ```bash
 make seed-all
 ```
-*(If on Windows without `make`, use: `$env:PYTHONPATH="."; uv run python scripts/seed_all.py`)*
+*(If on Windows without `make`, use: `$env:PYTHONPATH="."; uv run python scripts/seed.py --all-strategies`)*
 
 This creates 4 isolated collections in Qdrant (e.g., `deepvault_fixed`, `deepvault_sliding`) allowing for side-by-side benchmarking.
 

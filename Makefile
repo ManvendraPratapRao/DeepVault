@@ -1,4 +1,4 @@
-.PHONY: run dev ui test test-cov seed eval lint lint-fix typecheck docker-up docker-down
+.PHONY: run dev ui test test-cov seed seed-all eval reset count diagnose lint lint-fix typecheck docker-up docker-down
 
 run:
 	uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
@@ -16,21 +16,36 @@ test:
 test-cov:
 	uv run pytest --cov=app --cov-report=term-missing
 
+# Seed a single strategy: make seed CHUNKER=sliding
 seed:
-	PYTHONPATH=. uv run python scripts/seed_data.py
+	PYTHONPATH=. uv run python scripts/seed.py --chunker $(or $(CHUNKER),fixed)
 
+# Run the full 4-strategy master seeding pipeline
 seed-all:
-	PYTHONPATH=. uv run python scripts/seed_all.py
+	PYTHONPATH=. uv run python scripts/seed.py --all-strategies
 
+# Run the evaluation benchmark engine
 eval:
-	uv run python scripts/run_eval.py
+	PYTHONPATH=. uv run python scripts/eval_engine_metrics.py --limit 50
+
+# Reset all data. Single-strategy: make reset STRATEGY=semantic
+reset:
+	PYTHONPATH=. uv run python scripts/reset_db.py $(if $(STRATEGY),--strategy $(STRATEGY),)
+
+# Check Qdrant point counts across all strategy collections
+count:
+	PYTHONPATH=. uv run python scripts/check_qdrant_counts.py
+
+# Run chunk quality diagnostics across curated papers
+diagnose:
+	PYTHONPATH=. uv run python scripts/diagnostic_chunk_quality.py
 
 lint:
-	uv run ruff check app/ tests/
+	uv run ruff check app/ tests/ scripts/
 
 lint-fix:
-	uv run ruff check --fix app/ tests/
-	uv run ruff format app/ tests/
+	uv run ruff check --fix app/ tests/ scripts/
+	uv run ruff format app/ tests/ scripts/
 
 typecheck:
 	uv run mypy app/ || true

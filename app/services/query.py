@@ -42,11 +42,24 @@ class QueryService:
 
         # 2. Retrieve relevant chunks from the Vector Store
         # We target the strategy-specific collection if requested
-        collection_name = f"deepvault_{request.strategy}" if request.strategy else None
+        collection_name = f"deepvault_{request.chunking_strategy}" if request.chunking_strategy else None
+        
+        # Guard against unimplemented retrieval strategies
+        if request.retrieval_strategy and request.retrieval_strategy.lower() != "vector":
+            raise NotImplementedError(
+                f"Retrieval strategy '{request.retrieval_strategy}' is not yet implemented. "
+                "Currently only 'vector' (Vector Top-K) is supported."
+            )
         
         logger.info(
-            f"Strategy Routing: {request.strategy or 'default'} -> {collection_name or 'Default'}",
-            extra={"extra_fields": {"strategy": request.strategy, "collection": collection_name}}
+            f"Strategy Routing: Chunking='{request.chunking_strategy}', Retrieval='{request.retrieval_strategy}' -> Collection='{collection_name or 'Default'}'",
+            extra={
+                "extra_fields": {
+                    "chunking_strategy": request.chunking_strategy, 
+                    "retrieval_strategy": request.retrieval_strategy, 
+                    "collection": collection_name
+                }
+            }
         )
         
         chunks = await self.retriever.retrieve(

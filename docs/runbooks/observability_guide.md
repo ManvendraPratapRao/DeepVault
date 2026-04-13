@@ -48,15 +48,15 @@ Before declaring a production crisis, run these two built-in diagnostics:
 
 1. **Authentication Check**:
    ```pwsh
-   uv run python scratch/auth_diagnostic.py
+   uv run python scripts/auth_diagnostic.py
    ```
    *Validates if your `.env` key is being shadowed or if it contains non-ASCII characters.*
 
-2. **Victory Check**:
+2. **End-to-End Check** (requires API running on port 8000):
    ```pwsh
-   uv run python scratch/final_victory_check.py
+   uv run python scripts/check_qdrant_counts.py
    ```
-   *Tests the complete end-to-end RAG loop (Qdrant -> Groq).*
+   *Confirms all 4 Qdrant strategy collections are populated before running evaluations.*
 
 ---
 

@@ -13,6 +13,7 @@ class SlidingWindowChunker(BaseChunker):
     """
 
     def __init__(self, window_size: int = 600, stride: int = 480):
+        self.strategy_name = "sliding"
         self.window_size = window_size
         self.stride = stride
 

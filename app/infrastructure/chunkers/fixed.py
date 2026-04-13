@@ -11,6 +11,7 @@ class FixedWindowChunker(BaseChunker):
     """
 
     def __init__(self, chunk_size: int = 500, chunk_overlap: int = 100):
+        self.strategy_name = "fixed"
         if chunk_size <= 0:
             raise ValueError(f"chunk_size must be positive, got {chunk_size}")
         if chunk_overlap < 0:

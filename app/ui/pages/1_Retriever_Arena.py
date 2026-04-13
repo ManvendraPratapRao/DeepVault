@@ -56,7 +56,8 @@ if "messages" not in st.session_state:
 # --- API Helpers ---
 async def query_strategy(
     text: str, 
-    strategy: str, 
+    chunking_strategy: str, 
+    retrieval_strategy: str, 
     api_url: str, 
     api_key: str,
     top_k: int = 5, 
@@ -68,7 +69,8 @@ async def query_strategy(
         try:
             payload = {
                 "query_text": text,
-                "strategy": strategy,
+                "chunking_strategy": chunking_strategy,
+                "retrieval_strategy": retrieval_strategy,
                 "top_k": top_k,
             }
             response = await client.post(f"{api_url}/api/v1/query", json=payload, headers=headers)
@@ -85,18 +87,28 @@ with st.sidebar:
     API_URL = st.text_input("API Endpoint", value="http://localhost:8000")
     API_KEY = st.text_input("API Token", value="deepvault_secret_key", type="password")
     
-    st.divider()
-    
-    COL1_STRATEGY = st.selectbox(
-        "Strategy A (Left Panel)", 
+    COL1_CHUNK_STRAT = st.selectbox(
+        "Panel A - Chunking Array", 
         options=["fixed", "sliding", "structure", "semantic"],
         index=0
     )
+    COL1_RETRIEVAL_STRAT = st.selectbox(
+        "Panel A - Retrieval Algorithm", 
+        options=["vector", "hybrid", "rerank"],
+        index=0
+    )
     
-    COL2_STRATEGY = st.selectbox(
-        "Strategy B (Right Panel)", 
+    st.divider()
+    
+    COL2_CHUNK_STRAT = st.selectbox(
+        "Panel B - Chunking Array", 
         options=["fixed", "sliding", "structure", "semantic"],
         index=3
+    )
+    COL2_RETRIEVAL_STRAT = st.selectbox(
+        "Panel B - Retrieval Algorithm", 
+        options=["vector", "hybrid", "rerank"],
+        index=0
     )
     
     st.divider()
@@ -138,19 +150,22 @@ if prompt := st.chat_input("Ask a question about the synthesized corpus..."):
     with st.chat_message("assistant"):
         col_a, col_b = st.columns(2)
         
+        label_a = f"{COL1_CHUNK_STRAT} / {COL1_RETRIEVAL_STRAT}"
+        label_b = f"{COL2_CHUNK_STRAT} / {COL2_RETRIEVAL_STRAT}"
+        
         with col_a:
-            st.info(f"Inference: {COL1_STRATEGY}...")
+            st.info(f"Inference: {label_a}...")
             container_a = st.empty()
         
         with col_b:
-            st.info(f"Inference: {COL2_STRATEGY}...")
+            st.info(f"Inference: {label_b}...")
             container_b = st.empty()
 
         # Run both queries concurrently
         async def run_concurrent_queries():
             return await asyncio.gather(
-                query_strategy(prompt, COL1_STRATEGY, API_URL, API_KEY, TOP_K, TEMPERATURE),
-                query_strategy(prompt, COL2_STRATEGY, API_URL, API_KEY, TOP_K, TEMPERATURE)
+                query_strategy(prompt, COL1_CHUNK_STRAT, COL1_RETRIEVAL_STRAT, API_URL, API_KEY, TOP_K, TEMPERATURE),
+                query_strategy(prompt, COL2_CHUNK_STRAT, COL2_RETRIEVAL_STRAT, API_URL, API_KEY, TOP_K, TEMPERATURE)
             )
 
         t0 = time.perf_counter()
@@ -165,7 +180,7 @@ if prompt := st.chat_input("Ask a question about the synthesized corpus..."):
                 container_a.markdown(res_a["answer"])
                 st.markdown(f"<span class='latency-tag'>Latency: {res_a['latency_ms']:.1f}ms</span>", unsafe_allow_html=True)
                 
-                with st.expander(f"🔍 {COL1_STRATEGY} Context X-Ray"):
+                with st.expander(f"🔍 Context X-Ray ({label_a})"):
                     for i, source in enumerate(res_a.get("sources", [])):
                         score = source.get("score")
                         score_display = f"{score * 100:.1f}%" if score is not None else "N/A"
@@ -182,7 +197,7 @@ if prompt := st.chat_input("Ask a question about the synthesized corpus..."):
                 container_b.markdown(res_b["answer"])
                 st.markdown(f"<span class='latency-tag'>Latency: {res_b['latency_ms']:.1f}ms</span>", unsafe_allow_html=True)
                 
-                with st.expander(f"🔍 {COL2_STRATEGY} Context X-Ray"):
+                with st.expander(f"🔍 Context X-Ray ({label_b})"):
                     for i, source in enumerate(res_b.get("sources", [])):
                         score = source.get("score")
                         score_display = f"{score * 100:.1f}%" if score is not None else "N/A"
@@ -191,9 +206,8 @@ if prompt := st.chat_input("Ask a question about the synthesized corpus..."):
                         st.text_area(f"Content {i}", source["content"], height=150, key=f"b_{i}")
                         st.divider()
 
-        # Store for session history
         st.session_state.messages.append({
             "role": "assistant",
-            "strategy_a": {"name": COL1_STRATEGY, "answer": res_a.get("answer", "Error")},
-            "strategy_b": {"name": COL2_STRATEGY, "answer": res_b.get("answer", "Error")}
+            "strategy_a": {"name": label_a, "answer": res_a.get("answer", "Error")},
+            "strategy_b": {"name": label_b, "answer": res_b.get("answer", "Error")}
         })

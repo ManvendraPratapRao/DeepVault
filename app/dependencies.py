@@ -26,7 +26,7 @@ from app.services.query import QueryService
 
 # Global cache for singletons (The "Registry")
 _cache: dict[str, Any] = {
-    "executor": ThreadPoolExecutor(max_workers=4, thread_name_prefix="dv_worker")
+    "executor": ThreadPoolExecutor(max_workers=10, thread_name_prefix="dv_worker")
 }
 
 async def get_executor() -> ThreadPoolExecutor:

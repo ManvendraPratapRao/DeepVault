@@ -27,6 +27,7 @@ class StructureChunker(BaseChunker):
         fallback_chunk_size: int = 500,
         fallback_overlap: int = 100,
     ):
+        self.strategy_name = "structure"
         self.max_section_size = max_section_size
         self.fallback_chunk_size = fallback_chunk_size
         self.fallback_overlap = fallback_overlap

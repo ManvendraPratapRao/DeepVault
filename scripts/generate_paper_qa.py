@@ -14,7 +14,7 @@ from app.infrastructure.logging.structured import logger
 INPUT_DIR = Path("data/curated_papers")
 OUTPUT_FILE = Path("data/research_papers_golden_qa.json")
 QUESTIONS_PER_PAPER = 10
-MAX_CONTENT_CHARS = 12000  # Approx 3000-4000 tokens to stay safe with Groq limits
+MAX_CONTENT_CHARS = 24000  # Approx 6000-8000 tokens for deeper context coverage
 
 SYSTEM_PROMPT = """You are an expert AI researcher. 
 Your task is to generate {count} high-quality, technical Question and Answer pairs from the provided research paper text.

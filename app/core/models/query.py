@@ -21,11 +21,12 @@ class LLMResult(BaseModel):
 
 
 class QueryRequest(BaseModel):
-    # ... (Keep existing QueryRequest)
     query_text: str
+    top_k: int = 5
     user_id: str | None = None
     session_id: str | None = None
-    strategy: str | None = None
+    chunking_strategy: str = "fixed"
+    retrieval_strategy: str = "vector"
     filters: dict[str, Any] | None = None
 
 
