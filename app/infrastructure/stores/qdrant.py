@@ -20,9 +20,9 @@ class QdrantVectorStore(BaseVectorStore):
     Uses 'Local Path' storage for persistent disk-based indexing.
     """
 
-    def __init__(self, collection_name: str = None, client: AsyncQdrantClient | None = None):
+    def __init__(self, collection_name: str | None = None, client: AsyncQdrantClient | None = None):
         self.collection_name = collection_name or settings.QDRANT_COLLECTION
-        
+
         if client:
             self.client = client
             return
@@ -31,7 +31,9 @@ class QdrantVectorStore(BaseVectorStore):
         if settings.QDRANT_HOST and settings.QDRANT_HOST != "local":
             url = f"http://{settings.QDRANT_HOST}:{settings.QDRANT_PORT}"
             self.client = AsyncQdrantClient(url=url)
-            logger.info(f"Qdrant Vector Store instantiated over Network HTTP: {url} [Collection: {self.collection_name}]")
+            logger.info(
+                f"Qdrant Vector Store instantiated over Network HTTP: {url} [Collection: {self.collection_name}]"
+            )
         else:
             # Fallback to pure local persistence if specifically requested
             self.client = AsyncQdrantClient(path="qdrant_storage")
@@ -100,7 +102,8 @@ class QdrantVectorStore(BaseVectorStore):
             conditions = []
             for key, value in filters.items():
                 conditions.append(FieldCondition(key=key, match=MatchValue(value=value)))
-            qdrant_filter = Filter(must=conditions)
+            from typing import Any
+            qdrant_filter = Filter(must=conditions) # type: ignore
 
         # Modern Qdrant SDK (1.1x+) uses the consolidated query_points API.
         # This replaces the deprecated and removed .search() method.
@@ -116,15 +119,11 @@ class QdrantVectorStore(BaseVectorStore):
         return [
             Chunk(
                 id=str(point.id),
-                document_id=point.payload["document_id"],
-                content=point.payload["content"],
-                chunk_index=point.payload["chunk_index"],
+                document_id=point.payload["document_id"] if point.payload else "unknown",
+                content=point.payload["content"] if point.payload else "",
+                chunk_index=point.payload["chunk_index"] if point.payload else 0,
                 score=point.score,
-                metadata={
-                    k: v
-                    for k, v in point.payload.items()
-                    if k not in ["document_id", "content", "chunk_index"]
-                },
+                metadata={k: v for k, v in (point.payload or {}).items() if k not in ["document_id", "content", "chunk_index"]},
             )
             for point in response.points
         ]

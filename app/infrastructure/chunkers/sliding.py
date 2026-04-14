@@ -26,37 +26,54 @@ class SlidingWindowChunker(BaseChunker):
         start = 0
         index = 0
 
+        overlap = self.window_size - self.stride
+        if overlap < 0:
+            overlap = 0
+
         while start < len(text):
-            # 1. Define the ideal window
+            # 1. Expand the END to a sentence boundary
             end = min(start + self.window_size, len(text))
-
-            # 2. Try to expand/shrink slightly to hit a sentence end (grace period of 100 chars)
-            lookahead = text[end : end + 100]
-            sentence_break = re.search(r"[.!?]\s", lookahead)
-
-            if sentence_break:
-                effective_end = end + sentence_break.end()
+            if end < len(text):
+                lookahead = text[end : end + 100]
+                sentence_break = re.search(r"[.!?]\s+", lookahead)
+                if sentence_break:
+                    effective_end = end + sentence_break.end()
+                else:
+                    effective_end = end
             else:
                 effective_end = end
 
-            chunk_text = text[start:effective_end]
+            chunk_text = text[start:effective_end].strip()
 
-            chunks.append(
-                Chunk(
-                    id=str(uuid.uuid4()),
-                    document_id=document.id,
-                    content=chunk_text,
-                    chunk_index=index,
-                    metadata=document.metadata.model_dump(),
+            if chunk_text:
+                chunks.append(
+                    Chunk(
+                        id=str(uuid.uuid4()),
+                        document_id=document.id,
+                        content=chunk_text,
+                        chunk_index=index,
+                        metadata=document.metadata.model_dump(),
+                    )
                 )
-            )
 
-            # 3. Slide the start forward by the stride
-            start += self.stride
-            index += 1
-
-            # Prevent infinite loops if stride is 0 or negative
-            if self.stride <= 0:
+            # 2. Advance START dynamically for the next chunk
+            if effective_end >= len(text):
                 break
+
+            target_next_start = max(start + 1, effective_end - overlap)
+
+            # Find a sentence boundary near the target start point
+            if target_next_start < effective_end:
+                lookahead_start = text[target_next_start : target_next_start + 150]
+                start_boundary = re.search(r"[.!?]\s+", lookahead_start)
+
+                if start_boundary and (target_next_start + start_boundary.end() < effective_end):
+                    start = target_next_start + start_boundary.end()
+                else:
+                    start = target_next_start
+            else:
+                start = target_next_start
+
+            index += 1
 
         return chunks

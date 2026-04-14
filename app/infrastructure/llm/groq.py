@@ -28,37 +28,40 @@ class GroqLLMClient(BaseLLMClient):
         wait=wait_exponential(multiplier=1, min=2, max=60),
         retry=retry_if_exception_type((groq.RateLimitError, groq.APIConnectionError, groq.InternalServerError)),
         before_sleep=lambda retry_state: logger.warning(
-            f"Groq API call failed (Attempt {retry_state.attempt_number}/5). Retrying in {retry_state.next_action.sleep}s...",
-            extra={"extra_fields": {"error": str(retry_state.outcome.exception()), "model": retry_state.args[0] if len(retry_state.args) > 1 else "unknown"}},
+            f"Groq API call failed (Attempt {retry_state.attempt_number}/5). Retrying...",
+            extra={
+                "extra_fields": {
+                    "error": str(retry_state.outcome.exception()) if retry_state.outcome else "unknown",
+                    "model": "llama-3.1",
+                }
+            },
         ),
     )
     async def generate(self, prompt: str, system_prompt: str | None = None) -> LLMResult:
         """Sends a single completion request to Groq with automatic retry."""
-        
+
         messages = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt})
 
         try:
+            from typing import Any
             completion = await self.client.chat.completions.create(
                 model=self.model,
-                messages=messages,
+                messages=messages,  # type: ignore
                 temperature=settings.LLM_TEMPERATURE,
                 max_tokens=settings.LLM_MAX_TOKENS,
             )
-            
+
             # Extract telemetry from Groq usage object
             usage = TokenUsage(
                 prompt_tokens=completion.usage.prompt_tokens,
                 completion_tokens=completion.usage.completion_tokens,
-                total_tokens=completion.usage.total_tokens
+                total_tokens=completion.usage.total_tokens,
             )
-            
-            return LLMResult(
-                answer=completion.choices[0].message.content,
-                usage=usage
-            )
+
+            return LLMResult(answer=completion.choices[0].message.content, usage=usage)
         except (groq.RateLimitError, groq.APIConnectionError, groq.InternalServerError):
             raise  # Let tenacity handle these
         except Exception as e:
@@ -73,13 +76,14 @@ class GroqLLMClient(BaseLLMClient):
         messages.append({"role": "user", "content": prompt})
 
         try:
-            stream = await self.client.chat.completions.create(
+            from typing import Any
+            stream_resp = await self.client.chat.completions.create(
                 model=self.model,
-                messages=messages,
+                messages=messages,  # type: ignore
                 temperature=settings.LLM_TEMPERATURE,
                 stream=True,
             )
-            async for chunk in stream:
+            async for chunk in stream_resp:  # type: ignore
                 content = chunk.choices[0].delta.content
                 if content:
                     yield content

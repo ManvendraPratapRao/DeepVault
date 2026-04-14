@@ -4,11 +4,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     # App Settings
     APP_NAME: str = "DeepVault"
-    VERSION: str = "0.1.0"
+    VERSION: str = "1.0.0"
     DEBUG: bool = False
 
     # Groq Settings
-    GROQ_API_KEY: str
+    GROQ_API_KEY: str = ""
     API_KEY: str = "deepvault_secret_key"
     GROQ_MODEL_NAME: str = "llama-3.1-8b-instant"
 
@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     CHUNKER_OVERLAP: int = 120
     CHUNKER_STRATEGY: str = "fixed"  # "fixed" | "sliding" | "semantic" | "structure"
     SEMANTIC_SIMILARITY_THRESHOLD: float = 0.85
+    RETRIEVAL_STRATEGY: str = "vector"  # "vector" | "hybrid" | "hybrid_rerank"
 
     # SQLite
     SQLITE_DB_PATH: str = "deepvault.db"

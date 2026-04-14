@@ -15,10 +15,17 @@ class QueryService:
     Coordinates between retrieval and LLM generation.
     """
 
-    def __init__(self, retriever: BaseRetriever, llm_client: BaseLLMClient, cache_service: CacheService | None = None):
+    def __init__(
+        self, 
+        retriever: BaseRetriever, 
+        llm_client: BaseLLMClient, 
+        cache_service: CacheService | None = None,
+        reranker: "BaseReranker | None" = None
+    ):
         self.retriever = retriever
         self.llm_client = llm_client
         self.cache_service = cache_service
+        self.reranker = reranker
 
     async def ask(self, request: QueryRequest, request_id: str = "internal") -> QueryResponse:
         """
@@ -43,28 +50,33 @@ class QueryService:
         # 2. Retrieve relevant chunks from the Vector Store
         # We target the strategy-specific collection if requested
         collection_name = f"deepvault_{request.chunking_strategy}" if request.chunking_strategy else None
-        
-        # Guard against unimplemented retrieval strategies
-        if request.retrieval_strategy and request.retrieval_strategy.lower() != "vector":
+
+        # Guard against unimplemented retrieval strategies (unless vector or hybrid)
+        valid_strategies = {"vector", "hybrid", "hybrid_rerank"}
+        strat = (request.retrieval_strategy or "vector").lower()
+        if strat not in valid_strategies:
             raise NotImplementedError(
-                f"Retrieval strategy '{request.retrieval_strategy}' is not yet implemented. "
-                "Currently only 'vector' (Vector Top-K) is supported."
+                f"Retrieval strategy '{strat}' is not yet implemented. "
+                f"Known: {valid_strategies}"
             )
         
         logger.info(
-            f"Strategy Routing: Chunking='{request.chunking_strategy}', Retrieval='{request.retrieval_strategy}' -> Collection='{collection_name or 'Default'}'",
+            f"Strategy Routing: Chunking='{request.chunking_strategy}', Retrieval='{strat}' -> Collection='{collection_name or 'Default'}'",
             extra={
                 "extra_fields": {
                     "chunking_strategy": request.chunking_strategy, 
-                    "retrieval_strategy": request.retrieval_strategy, 
+                    "retrieval_strategy": strat, 
                     "collection": collection_name
                 }
             }
         )
         
+        # If we are reranking, we fetch more candidate chunks initially
+        fetch_k = request.top_k * 4 if strat == "hybrid_rerank" else request.top_k
+
         chunks = await self.retriever.retrieve(
             query=request.query_text, 
-            top_k=request.top_k, 
+            top_k=fetch_k, 
             filters=request.filters,
             collection_name=collection_name
         )
@@ -72,6 +84,16 @@ class QueryService:
         # 2. Handle empty retrieval (Production Safety)
         if not chunks:
             raise RetrievalError("No relevant documents found for this query.", detail={"query": request.query_text})
+
+        # 3. Optional Reranking Step (Session 7)
+        if strat == "hybrid_rerank" and self.reranker:
+            logger.info(f"Reranking {len(chunks)} candidate chunks using Cross-Encoder...")
+            chunks = await self.reranker.rerank(
+                query=request.query_text,
+                chunks=chunks,
+                top_k=request.top_k
+            )
+            logger.info(f"Reranking complete. Selected top {len(chunks)} semantic matches.")
 
         # 3. Build the Context String with citations
         # We include the source name and chunk index so the LLM can reference them
@@ -85,7 +107,9 @@ class QueryService:
 
         # 4. Build the Final Prompt
         # We manually replace {context} and {question} to avoid crashes if papers have braces.
-        final_user_prompt = RAG_USER_TEMPLATE.replace("{context}", context_str).replace("{question}", request.query_text)
+        final_user_prompt = RAG_USER_TEMPLATE.replace("{context}", context_str).replace(
+            "{question}", request.query_text
+        )
 
         # 5. Generate the Answer via LLM (Groq)
         # We pass our specialized RAG_SYSTEM_PROMPT to ensure groundedness
@@ -99,9 +123,9 @@ class QueryService:
         # Senior Dev Tip: We convert datetime objects and other complex types to strings here
         # to prevent 500 errors during final pydantic validation/serialization.
         for chunk in chunks:
-            if hasattr(chunk, 'metadata') and isinstance(chunk.metadata, dict):
+            if hasattr(chunk, "metadata") and isinstance(chunk.metadata, dict):
                 for k, v in chunk.metadata.items():
-                    if hasattr(v, 'isoformat'): # Handle datetime objects
+                    if hasattr(v, "isoformat"):  # Handle datetime objects
                         chunk.metadata[k] = v.isoformat()
                     elif not isinstance(v, (str, int, float, bool, list, dict, type(None))):
                         chunk.metadata[k] = str(v)
@@ -121,11 +145,11 @@ class QueryService:
         )
 
         response = QueryResponse(
-            answer=llm_result.answer, 
-            sources=chunks, 
+            answer=llm_result.answer,
+            sources=chunks,
             usage=llm_result.usage,
-            latency_ms=latency_ms, 
-            request_id=request_id
+            latency_ms=latency_ms,
+            request_id=request_id,
         )
 
         # 7. Cache the semantic result to radically speed up identical future questions

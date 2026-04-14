@@ -4,7 +4,6 @@ from fastapi.security import APIKeyHeader
 from app.api.schemas.requests import QueryAPIRequest
 from app.api.schemas.responses import QueryAPIResponse
 from app.config import settings
-from app.core.exceptions import RetrievalError
 from app.dependencies import get_query_service
 from app.services.query import QueryService
 

@@ -1,12 +1,10 @@
 import asyncio
 import json
-import os
 import re
 from pathlib import Path
-from typing import List, Dict
 
 import fitz  # PyMuPDF
-from app.config import settings
+
 from app.infrastructure.llm.groq import GroqLLMClient
 from app.infrastructure.logging.structured import logger
 
@@ -61,10 +59,10 @@ class QAGenerator:
                 pages_to_read = list(range(min(6, num_pages)))
                 if num_pages > 6:
                     pages_to_read.extend(range(max(num_pages - 2, 6), num_pages))
-                
+
                 for p_idx in pages_to_read:
                     content += doc[p_idx].get_text()
-            
+
             # Truncate if still too long
             return content[:MAX_CONTENT_CHARS]
         except Exception as e:
@@ -73,25 +71,21 @@ class QAGenerator:
 
     async def generate_for_paper(self, pdf_path: Path):
         filename = pdf_path.name
-        
+
         # Check if already processed
-        if any(r['source_document'] == filename for r in self.results):
+        if any(r["source_document"] == filename for r in self.results):
             logger.info(f"Skipping {filename}, already processed.")
             return
 
         logger.info(f"Processing {filename}...")
-        
+
         text = self.extract_text(pdf_path)
         if not text:
             logger.warning(f"No text extracted for {filename}, skipping.")
             return
 
-        user_prompt = USER_PROMPT_TEMPLATE.format(
-            filename=filename,
-            text=text,
-            count=QUESTIONS_PER_PAPER
-        )
-        
+        user_prompt = USER_PROMPT_TEMPLATE.format(filename=filename, text=text, count=QUESTIONS_PER_PAPER)
+
         system_prompt = SYSTEM_PROMPT.format(count=QUESTIONS_PER_PAPER)
 
         try:
@@ -106,8 +100,8 @@ class QAGenerator:
                     parsed_batch = json.loads(response.answer)
                 except json.JSONDecodeError:
                     # Try to find anything between [ and ]
-                    start = response.answer.find('[')
-                    end = response.answer.rfind(']') + 1
+                    start = response.answer.find("[")
+                    end = response.answer.rfind("]") + 1
                     if start != -1 and end != -1:
                         parsed_batch = json.loads(response.answer[start:end])
 
@@ -129,7 +123,7 @@ class QAGenerator:
         """Load existing results if file exists."""
         if OUTPUT_FILE.exists():
             try:
-                with open(OUTPUT_FILE, "r", encoding="utf-8") as f:
+                with open(OUTPUT_FILE, encoding="utf-8") as f:
                     self.results = json.load(f)
                 logger.info(f"Loaded {len(self.results)} existing QA pairs.")
             except Exception as e:
@@ -141,7 +135,7 @@ class QAGenerator:
             return
 
         self.load_existing()
-        
+
         pdf_files = list(INPUT_DIR.glob("*.pdf"))
         logger.info(f"Found {len(pdf_files)} PDF files.")
 

@@ -35,10 +35,10 @@ ALL_STRATEGIES = ["fixed", "sliding", "structure", "semantic"]
 
 # Per-strategy chunker configuration used in --all-strategies mode
 STRATEGY_CONFIG = {
-    "fixed":     {"size": 500,  "overlap": 100},
-    "sliding":   {"size": 800,  "overlap": 250},
+    "fixed": {"size": 500, "overlap": 100},
+    "sliding": {"size": 800, "overlap": 250},
     "structure": {"size": 1000, "overlap": 200},
-    "semantic":  {"size": 500,  "overlap": 100},  # size used only as fallback
+    "semantic": {"size": 500, "overlap": 100},  # size used only as fallback
 }
 
 
@@ -46,12 +46,13 @@ STRATEGY_CONFIG = {
 # Core worker
 # ---------------------------------------------------------------------------
 
+
 async def _ingest_with_semaphore(svc, file_path: Path, semaphore: asyncio.Semaphore, stats: dict):
     """Worker task that respects a semaphore to limit concurrency."""
     async with semaphore:
         try:
-            doc = await svc.ingest_file(file_path)
-            print(f"[OK]   Ingested: {doc.metadata.source}")
+            doc, chunk_count = await svc.ingest_file(file_path)
+            print(f"[OK]   Ingested: {doc.metadata.source} ({chunk_count} chunks)")
             stats["success"] += 1
         except DuplicateDocumentError:
             print(f"[SKIP] {file_path.name} (Already indexed)")
@@ -65,6 +66,7 @@ async def _ingest_with_semaphore(svc, file_path: Path, semaphore: asyncio.Semaph
 # ---------------------------------------------------------------------------
 # Single-strategy pass
 # ---------------------------------------------------------------------------
+
 
 async def seed_single(data_dirs: list[str], chunker: str, dry_run: bool):
     """Run one ingestion pass for a specific chunker strategy."""
@@ -81,20 +83,13 @@ async def seed_single(data_dirs: list[str], chunker: str, dry_run: bool):
     # Apply per-strategy chunker params if known
     if chunker in STRATEGY_CONFIG:
         cfg = STRATEGY_CONFIG[chunker]
-        settings.CHUNKER_SIZE    = cfg["size"]
+        settings.CHUNKER_SIZE = cfg["size"]
         settings.CHUNKER_OVERLAP = cfg["overlap"]
 
-    settings.CHUNKER_STRATEGY = chunker
+    files = [f for d in valid_dirs for ext in settings.SUPPORTED_FILE_EXTENSIONS for f in d.rglob(f"*{ext}")]
 
-    files = [
-        f
-        for d in valid_dirs
-        for ext in settings.SUPPORTED_FILE_EXTENSIONS
-        for f in d.rglob(f"*{ext}")
-    ]
-
-    pdf_count  = sum(1 for f in files if f.suffix.lower() == ".pdf")
-    md_count   = sum(1 for f in files if f.suffix.lower() in {".md", ".txt"})
+    pdf_count = sum(1 for f in files if f.suffix.lower() == ".pdf")
+    md_count = sum(1 for f in files if f.suffix.lower() in {".md", ".txt"})
 
     print(f"\n[CONFIG] Strategy: {chunker.upper()}")
     print(f"[CONFIG] Dirs:     {[p.resolve().name for p in valid_dirs]}")
@@ -107,7 +102,7 @@ async def seed_single(data_dirs: list[str], chunker: str, dry_run: bool):
 
     start = time.perf_counter()
     await initialize_all()
-    svc = await get_ingestion_service()
+    svc = await get_ingestion_service(strategy=chunker)
 
     stats = {"success": 0, "duplicate": 0, "failed": 0}
     # Semaphore of 2 is stable for memory-intensive semantic chunking
@@ -129,6 +124,7 @@ async def seed_single(data_dirs: list[str], chunker: str, dry_run: bool):
 # All-strategies orchestrator (was seed_all.py)
 # ---------------------------------------------------------------------------
 
+
 async def seed_all_strategies(data_dirs: list[str], dry_run: bool):
     """Run 4 sequential ingestion passes — one per chunking strategy."""
     print("[START] DeepVault Master Seeding Pipeline")
@@ -137,9 +133,9 @@ async def seed_all_strategies(data_dirs: list[str], dry_run: bool):
     total_start = time.perf_counter()
 
     for strategy in ALL_STRATEGIES:
-        print(f"\n{'='*52}")
+        print(f"\n{'=' * 52}")
         print(f"  PASS: {strategy.upper()}")
-        print(f"{'='*52}")
+        print(f"{'=' * 52}")
 
         # Reset singleton cache so each pass gets a fresh chunker + vector store
         clear_cache()

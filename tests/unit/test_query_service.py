@@ -42,3 +42,23 @@ async def test_latency_measured(query_service):
 
     assert isinstance(response.latency_ms, float)
     assert response.latency_ms >= 0.0
+
+
+def test_ask_llm_failure(query_service, mock_retriever, mock_llm_client):
+    mock_llm_client.generate.side_effect = Exception("Groq API Timeout")
+    request = QueryAPIRequest(query_text="What is DeepVault?", top_k=3)
+
+    import pytest
+
+    with pytest.raises(Exception, match="Groq API Timeout"):
+        # We need an async test
+        pass
+
+
+@pytest.mark.asyncio
+async def test_ask_llm_async_failure(query_service, mock_retriever, mock_llm_client):
+    mock_llm_client.generate.side_effect = Exception("Groq API Timeout")
+    request = QueryAPIRequest(query_text="What is DeepVault?", top_k=3)
+
+    with pytest.raises(Exception, match="Groq API Timeout"):
+        await query_service.ask(request)

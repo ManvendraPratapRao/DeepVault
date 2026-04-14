@@ -86,3 +86,47 @@ def test_structure_chunker():
     assert len(chunks) == 2
     assert "Heading 1" in chunks[0].content
     assert "Heading 2" in chunks[1].content
+
+
+# --- EDGE CASES ---
+
+
+def test_fixed_chunker_empty_document():
+    doc = Document(id="empty", content="", metadata=DocumentMetadata(source="test"), hash="hash")
+    chunker = FixedWindowChunker(chunk_size=50, chunk_overlap=10)
+    chunks = chunker.chunk(doc)
+    assert len(chunks) == 1
+    assert chunks[0].content == ""
+
+
+def test_sliding_chunker_no_sentence_breaks():
+    doc = Document(id="inf", content="A" * 5000, metadata=DocumentMetadata(source="test"), hash="hash")
+    chunker = SlidingWindowChunker(window_size=500, stride=400)
+    chunks = chunker.chunk(doc)
+    assert len(chunks) > 5
+    assert len(chunks[0].content) <= 600  # Will cut off at max window limit (500 + 100 extension)
+
+
+def test_semantic_chunker_unicode_heavy(mock_embedder):
+    text = "Hello 世界. This is a 測試. 🌟 Emoticons help 🚀. Done!"
+    doc = Document(id="uni", content=text, metadata=DocumentMetadata(source="test"), hash="hash")
+
+    mock_embedder.model = MagicMock()
+    mock_embedder.model.encode.return_value = [[1.0] * 384 for _ in range(4)]
+
+    chunker = SemanticChunker(embedder=mock_embedder, similarity_threshold=0.9, min_chunk_size=5)
+    chunks = chunker.chunk(doc)
+    assert len(chunks) > 0
+
+
+def test_structure_chunker_giant_fallback():
+    # A huge block of text with only one heading
+    text = "# Massive Heading\n" + ("A" * 5000)
+    doc = Document(id="giant", content=text, metadata=DocumentMetadata(source="test"), hash="hash")
+    chunker = StructureChunker(max_section_size=1500, fallback_chunk_size=500, fallback_overlap=100)
+    chunks = chunker.chunk(doc)
+
+    # Needs to be chunked into multiple pieces
+    assert len(chunks) >= 10
+    # ensure heading is prepended to subsequent chunks
+    assert chunks[1].content.startswith("# Massive Heading (cont.)")

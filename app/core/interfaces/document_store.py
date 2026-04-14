@@ -15,7 +15,12 @@ class BaseDocumentStore(ABC):
 
     @abstractmethod
     async def get_document(self, doc_id: str) -> Document | None:
-        """Retrieve document details by ID."""
+        """Retrieve a document by its ID."""
+        pass
+
+    @abstractmethod
+    async def get_document_by_hash(self, doc_hash: str) -> Document | None:
+        """Retrieve a document by its content hash to prevent duplicates."""
         pass
 
     @abstractmethod

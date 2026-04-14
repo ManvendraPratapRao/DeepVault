@@ -8,7 +8,8 @@ st.set_page_config(
 )
 
 # --- Custom Styling ---
-st.markdown("""
+st.markdown(
+    """
 <style>
     .main-header {
         font-size: 3rem;
@@ -37,7 +38,9 @@ st.markdown("""
         border-color: #58a6ff;
     }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 # --- Content ---
 st.markdown("<h1 class='main-header'>DeepVault</h1>", unsafe_allow_html=True)
@@ -48,26 +51,32 @@ st.divider()
 col1, col2 = st.columns(2)
 
 with col1:
-    st.markdown("""
+    st.markdown(
+        """
     <div class='feature-card'>
         <h3>🧩 Retriever Arena</h3>
         <p>Live, side-by-side diagnostic tool to compare chunking strategies in real-time. 
         Battle-test your query logic across Fixed, Sliding, Structure, and Semantic collections.</p>
         <p><i>Use this to debug specific queries and visualize retrieval context.</i></p>
     </div>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
     if st.button("Go to Arena", use_container_width=True):
         st.switch_page("pages/1_Retriever_Arena.py")
 
 with col2:
-    st.markdown("""
+    st.markdown(
+        """
     <div class='feature-card'>
         <h3>🧪 Metrics Laboratory</h3>
         <p>Enterprise-grade benchmarking suite. Analyze Faithfulness, Relevance, and Latency (p95) 
         across thousands of automated test cases using LLM-as-a-judge (Llama-3-70b).</p>
         <p><i>Use this for structural evaluation and production readiness checks.</i></p>
     </div>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
     if st.button("Explore Laboratory", use_container_width=True):
         st.switch_page("pages/2_Metrics_Laboratory.py")
 
@@ -80,4 +89,6 @@ c2.success("LLM (Groq): Online")
 c3.info("Strategy: Hybrid-Active")
 c4.warning("Embedding: BGE-v1.5")
 
-st.info("💡 **Tip**: Use the sidebar to navigate between toolsets. DeepVault is currently optimized for high-precision technical retrieval.")
+st.info(
+    "💡 **Tip**: Use the sidebar to navigate between toolsets. DeepVault is currently optimized for high-precision technical retrieval."
+)

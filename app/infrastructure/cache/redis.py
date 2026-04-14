@@ -19,7 +19,8 @@ class RedisCache:
         try:
             self.client = redis.Redis(host=self.host, port=self.port, decode_responses=True)
             # Health check on boot
-            await self.client.ping()
+            from typing import Any, cast
+            await cast(Any, self.client.ping())
             logger.info("Connected to Redis successfully.", extra={"extra_fields": {"redis_host": self.host}})
         except Exception as e:
             logger.error(f"Failed to connect to Redis: {str(e)}")

@@ -1,12 +1,16 @@
 import time
-from fastapi import Request, HTTPException
+
+from fastapi import HTTPException, Request
+
 from app.infrastructure.cache.redis import RedisCache
 from app.infrastructure.logging.structured import logger
+
 
 class RateLimiter:
     """
     A simple sliding window rate limiter backed by Redis.
     """
+
     def __init__(self, redis: RedisCache, requests_per_minute: int = 60):
         self.redis = redis
         self.requests_per_minute = requests_per_minute
@@ -19,22 +23,20 @@ class RateLimiter:
         now = int(time.time())
         window_sec = 60
         key = f"rl:{identifier}:{now // window_sec}"
-        
+
         # Increment the count for the current minute
         # We use a simple window approach for performance
-        count = await self.redis.get(key)
-        count = int(count) if count else 0
-        
+        redis_val = await self.redis.get(key)
+        count = int(redis_val) if redis_val else 0
+
         if count >= self.requests_per_minute:
             logger.warning(f"Rate limit exceeded for {identifier}")
-            raise HTTPException(
-                status_code=429, 
-                detail="Too many requests. Please slow down."
-            )
-            
+            raise HTTPException(status_code=429, detail="Too many requests. Please slow down.")
+
         await self.redis.set(key, str(count + 1), ttl_seconds=window_sec)
 
+
 # Helper function to be used as a FastAPI dependency
-async def rate_limit(request: Request, redis: RedisCache = None):
+async def rate_limit(request: Request, redis: RedisCache | None = None):
     # This will be refined as we integrate it into the routes
     pass

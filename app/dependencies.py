@@ -1,9 +1,12 @@
-import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
+
 from qdrant_client import AsyncQdrantClient
 
 from app.config import settings
+from app.core.interfaces.chunker import BaseChunker
+from app.core.interfaces.retriever import BaseRetriever
+from app.core.interfaces.reranker import BaseReranker
 from app.infrastructure.cache.redis import RedisCache
 from app.infrastructure.chunkers.fixed import FixedWindowChunker
 from app.infrastructure.chunkers.semantic import SemanticChunker
@@ -15,6 +18,9 @@ from app.infrastructure.embedders.bge import BgeEmbedder
 from app.infrastructure.llm.groq import GroqLLMClient
 from app.infrastructure.logging.structured import logger
 from app.infrastructure.retrievers.vector import VectorRetriever
+from app.infrastructure.retrievers.bm25 import BM25Retriever
+from app.infrastructure.retrievers.hybrid import HybridRetriever
+from app.infrastructure.rerankers.cross_encoder import CrossEncoderReranker
 from app.infrastructure.stores.qdrant import QdrantVectorStore
 from app.infrastructure.stores.sqlite import SqliteDocumentStore
 from app.services.cache_service import CacheService
@@ -25,9 +31,8 @@ from app.services.ingestion import IngestionService
 from app.services.query import QueryService
 
 # Global cache for singletons (The "Registry")
-_cache: dict[str, Any] = {
-    "executor": ThreadPoolExecutor(max_workers=10, thread_name_prefix="dv_worker")
-}
+_cache: dict[str, Any] = {"executor": ThreadPoolExecutor(max_workers=10, thread_name_prefix="dv_worker")}
+
 
 async def get_executor() -> ThreadPoolExecutor:
     """Returns the shared thread pool for CPU-bound AI tasks."""
@@ -52,34 +57,35 @@ async def get_embedder() -> BgeEmbedder:
     return _cache["embedder"]
 
 
-async def get_chunker():
-    if "chunker" not in _cache:
-        strategy = settings.CHUNKER_STRATEGY
-        if strategy == "sliding":
-            _cache["chunker"] = SlidingWindowChunker(
-                window_size=settings.CHUNKER_SIZE, 
-                stride=settings.CHUNKER_SIZE - settings.CHUNKER_OVERLAP
+async def get_chunker(strategy: str | None = None) -> BaseChunker:
+    effective_strategy = strategy or settings.CHUNKER_STRATEGY
+    cache_key = f"chunker_{effective_strategy}"
+
+    if cache_key not in _cache:
+        if effective_strategy == "sliding":
+            _cache[cache_key] = SlidingWindowChunker(
+                window_size=settings.CHUNKER_SIZE, stride=settings.CHUNKER_SIZE - settings.CHUNKER_OVERLAP
             )
-        elif strategy == "semantic":
+        elif effective_strategy == "semantic":
             embedder = await get_embedder()
-            _cache["chunker"] = SemanticChunker(
+            _cache[cache_key] = SemanticChunker(
                 embedder=embedder, similarity_threshold=settings.SEMANTIC_SIMILARITY_THRESHOLD
             )
-        elif strategy == "structure":
-            _cache["chunker"] = StructureChunker(
+        elif effective_strategy == "structure":
+            _cache[cache_key] = StructureChunker(
                 max_section_size=1500,
                 fallback_chunk_size=settings.CHUNKER_SIZE,
                 fallback_overlap=settings.CHUNKER_OVERLAP,
             )
         else:
-            _cache["chunker"] = FixedWindowChunker(
+            _cache[cache_key] = FixedWindowChunker(
                 chunk_size=settings.CHUNKER_SIZE, chunk_overlap=settings.CHUNKER_OVERLAP
             )
 
         # Normalize the strategy name for consistent metadata tracking
-        _cache["chunker"].strategy_name = strategy
+        _cache[cache_key].strategy_name = effective_strategy
 
-    return _cache["chunker"]
+    return _cache[cache_key]
 
 
 async def get_doc_store() -> SqliteDocumentStore:
@@ -96,7 +102,7 @@ async def get_qdrant_client() -> AsyncQdrantClient:
             _cache["qdrant_client"] = AsyncQdrantClient(url=url)
         else:
             _cache["qdrant_client"] = AsyncQdrantClient(path="qdrant_storage")
-    
+
     # 🕵️ Security Safety: Ensure the client wasn't closed by a previous pass
     client = _cache["qdrant_client"]
     try:
@@ -119,20 +125,20 @@ async def get_vector_store(strategy: str | None = None) -> QdrantVectorStore:
     effective_strategy = strategy or settings.CHUNKER_STRATEGY
     collection = f"deepvault_{effective_strategy}"
     cache_key = f"vstore_{collection}"
-    
+
     if cache_key not in _cache:
         client = await get_qdrant_client()
         embedder = await get_embedder()
-        
+
         # 2. Instantiate the store with the shared client
         vstore = QdrantVectorStore(collection_name=collection, client=client)
-        
+
         # 3. JIT Initialization (Ensures the collection exists with right dims)
         # This only adds ~10ms overhead after the first call per strategy
         await vstore.initialize(vector_size=embedder.get_dimension())
-        
+
         _cache[cache_key] = vstore
-        
+
     return _cache[cache_key]
 
 
@@ -142,32 +148,70 @@ async def get_llm_client() -> GroqLLMClient:
     return _cache["llm_client"]
 
 
-async def get_retriever() -> VectorRetriever:
-    if "retriever" not in _cache:
-        embedder = await get_embedder()
-        vstore = await get_vector_store()
-        _cache["retriever"] = VectorRetriever(embedder=embedder, vector_store=vstore)
-    return _cache["retriever"]
+async def get_retriever(strategy: str | None = None) -> BaseRetriever:
+    """
+    Factory that resolves the retrieval engine (Vector, BM25, or Hybrid).
+    """
+    effective_strategy = strategy or settings.RETRIEVAL_STRATEGY
+    
+    if effective_strategy == "hybrid" or effective_strategy == "hybrid_rerank":
+        if "hybrid_retriever" not in _cache:
+            v_retriever = VectorRetriever(embedder=await get_embedder(), vector_store=await get_vector_store())
+            b_retriever = await get_bm25_retriever()
+            _cache["hybrid_retriever"] = HybridRetriever(
+                vector_retriever=v_retriever, 
+                bm25_retriever=b_retriever
+            )
+        return _cache["hybrid_retriever"]
+    
+    elif effective_strategy == "bm25":
+        return await get_bm25_retriever()
+        
+    else: # Default to Vector
+        if "retriever" not in _cache:
+            embedder = await get_embedder()
+            vstore = await get_vector_store()
+            _cache["retriever"] = VectorRetriever(embedder=embedder, vector_store=vstore)
+        return _cache["retriever"]
+
+
+async def get_bm25_retriever() -> BM25Retriever:
+    if "bm25_retriever" not in _cache:
+        _cache["bm25_retriever"] = BM25Retriever(qdrant_client=await get_qdrant_client())
+    return _cache["bm25_retriever"]
+
+
+async def get_reranker() -> BaseReranker:
+    if "reranker" not in _cache:
+        # Note: This model is 90MB, it will download on first access if not cached
+        _cache["reranker"] = CrossEncoderReranker()
+    return _cache["reranker"]
 
 
 # --- SERVICE BUILDERS ---
 # These are what the actual API routes will call
 
 
-async def get_ingestion_service() -> IngestionService:
+async def get_ingestion_service(strategy: str | None = None) -> IngestionService:
     return IngestionService(
-        chunker=await get_chunker(),
+        chunker=await get_chunker(strategy=strategy),
         embedder=await get_embedder(),
         doc_store=await get_doc_store(),
-        vector_store=await get_vector_store(),
+        vector_store=await get_vector_store(strategy=strategy),
     )
 
 
 async def get_query_service() -> QueryService:
+    # Resolve reranker ONLY if the strategy demands it to save memory for vector-only users
+    reranker = None
+    if settings.RETRIEVAL_STRATEGY == "hybrid_rerank":
+        reranker = await get_reranker()
+
     return QueryService(
         retriever=await get_retriever(),
         llm_client=await get_llm_client(),
         cache_service=await get_cache_service(),
+        reranker=reranker
     )
 
 
@@ -185,7 +229,7 @@ async def initialize_all():
     # 1. Warm up core infrastructure (Synchronous dependencies)
     doc_store = await get_doc_store()
     redis_cache = await get_redis_cache()
-    
+
     await doc_store.initialize()
     await redis_cache.initialize()
 
@@ -201,12 +245,12 @@ async def initialize_all():
 async def shutdown_all():
     """Safely closes all database connections (Called at API stop)."""
     logger.info("Shutting down DeepVault dependencies...")
-    
+
     if "qdrant_client" in _cache:
         await _cache["qdrant_client"].close()
         del _cache["qdrant_client"]
         logger.info("Closed and released Qdrant connection pool.")
-        
+
     if "doc_store" in _cache:
         await _cache["doc_store"].close()
     if "redis_cache" in _cache:
@@ -215,7 +259,7 @@ async def shutdown_all():
     if "executor" in _cache:
         _cache["executor"].shutdown(wait=False)
         logger.info("Compute workers released.")
-        
+
     clear_cache()
     logger.info("Shutdown complete.")
 

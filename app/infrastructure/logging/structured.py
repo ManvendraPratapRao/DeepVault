@@ -36,15 +36,15 @@ def setup_logging(level: str = "INFO"):
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(JsonFormatter())
 
-    root_logger = logging.getLogger()
-    root_logger.setLevel(level)
+    vault_logger = logging.getLogger("deepvault")
+    vault_logger.setLevel(level)
 
     # Remove existing handlers to avoid duplicate logs
-    if root_logger.hasHandlers():
-        root_logger.handlers.clear()
+    if vault_logger.hasHandlers():
+        vault_logger.handlers.clear()
 
-    root_logger.addHandler(handler)
-    return root_logger
+    vault_logger.addHandler(handler)
+    return vault_logger
 
 
 # Initialize logger instance for the entire application

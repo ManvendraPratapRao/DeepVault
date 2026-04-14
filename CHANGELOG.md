@@ -1,20 +1,29 @@
 # Changelog
 
-All notable changes to the DeepVault project will be documented in this file.
+All notable changes to DeepVault are documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [1.0.0] - MVP Release Phase 1
-
-### First Enterprise Phase Deployment (Phase 1A and 1B)
-This marks the official release of the completely asynchronous, multi-container capable architecture scaling natively via structural Python bounds mapping Qdrant clustering.
+## [1.0.0] — Phase 1 Complete
 
 ### Added
-- **Core RAG Architecture**: Dynamically evaluates raw string queries completely through `Groq` (Llama-3.1-8b) networks utilizing strict Hexagonal Domains (`IngestionService`, `QueryService`).
-- **Distributed Vector Stores**: `QdrantVectorStore` formally configured using direct local indexing OR HTTP Rest bounds if instantiated alongside Docker clusters. Includes native metadata mapping arrays.
-- **Relational Persistence**: Dual-layer architecture enforces `SQLite` to rigorously track document checksum hashes, proactively deflecting identical API injection workloads computationally natively.
-- **Cache Engine `Phase 1B`**: Deep Redis Cache completely decouples network bottlenecks, dynamically slashing repetitive generation queries to below ~35ms latency using md5 semantic payload signatures.
-- **Asynchronous Injection `Phase 1B`**: Core `POST /documents/async` payload completely decouples large `.pdf` or `.md` injection arrays directly mapping to a tracker ID via FastAPI background routines.
-- **Test Integrity Coverage**: Uncompromising CI matrix encompassing ~26 E2E Integration networks natively bypassing real execution via Dependency Overrides (`AsyncMock`). Mapped securely to `github-actions: ci.yaml`.
+- **Core RAG Pipeline**: FastAPI application with ingestion, query, and document management endpoints. Query flow: embed query → Qdrant vector search → context assembly → Groq LLM generation.
+- **4 Chunking Strategies**: Fixed window, sliding window (sentence-boundary aware), structure-based (Markdown headings), and semantic (embedding similarity). Each strategy writes to an isolated Qdrant collection.
+- **Evaluation Engine**: Automated benchmark pipeline with LLM-as-judge scoring (faithfulness + relevance), retrieval precision@k, latency percentiles, and per-query cost tracking. Supports balanced sampling across research and synthetic datasets.
+- **Redis Caching**: Query response cache (hash-based lookup) and embedding cache to avoid recomputation. Feature-flag controlled via `CACHE_ENABLED` and `EMBEDDING_CACHE_ENABLED`.
+- **Async Ingestion**: `POST /documents/text/async` returns a job ID immediately, processes in background, and tracks status in Redis.
+- **PDF Support**: Ingestion pipeline handles `.md`, `.txt`, and `.pdf` files via PyMuPDF.
+- **Structured JSON Logging**: All logs output as JSON with timestamps, module names, and correlation IDs. Request middleware injects a unique `X-Request-ID` header.
+- **Rate Limiting**: Sliding-window rate limiter (60 req/min per API key) backed by Redis. Fails open if Redis is unavailable.
+- **Docker Deployment**: Multi-stage Dockerfile (build + runtime), docker-compose with Redis, Qdrant, and API service. Includes healthchecks.
+- **CI/CD**: GitHub Actions pipeline runs ruff format check → ruff lint → mypy → pytest → Docker build on every push and PR.
+- **Streamlit Dashboard**: Retriever Arena (live strategy comparison) and Metrics Laboratory (benchmark visualization).
+- **5 Architecture Decision Records**: Vector DB choice, LLM provider, metadata store, interface design, caching strategy.
 
-### Limitations
-- **No Hybrid Search Algorithm**: Standard `Cosine` similarity inherently misses precise keyword searches. Phase 2 introduces full BM25 weighting models structurally into Qdrant.
-- **Naïve LLM Generation Router**: Generative bounds are constrained strictly entirely by 8B instruction subsets. Subsequent phases seamlessly integrate 8B/70B load balancer arrays.
+### Benchmark Results (V2 Post-Refactor)
+- Sliding Window achieved highest faithfulness (3.34/5) and lowest hallucination rate (28%).
+- All strategies reached ~94% hit rate at k=5, suggesting retrieval precision ceiling requires hybrid search to break.
+- See `docs/case_studies/` for full analysis.
+
+### Known Limitations
+- Only vector retrieval is implemented. Hybrid search (BM25 + vector) and reranking are planned for Phase 2.
+- Single LLM model (Llama-3.1-8b). Cost-based model routing is planned for Phase 5.
+- SQLite metadata store. PostgreSQL migration planned for Phase 4.

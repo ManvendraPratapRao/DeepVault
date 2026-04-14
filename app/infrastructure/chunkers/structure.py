@@ -95,19 +95,39 @@ class StructureChunker(BaseChunker):
 
             # If section is too long, sub-chunk it
             if len(section_text) > self.max_section_size:
-                sub_doc = Document(
-                    id=document.id,
-                    content=section_text,
-                    metadata=document.metadata,
-                    hash=document.hash,
-                )
-                sub_chunks = self._fallback.chunk(sub_doc)
+                if heading and body:
+                    # Sub-chunk just the body so we can stitch the heading back onto every piece
+                    sub_doc = Document(
+                        id=document.id,
+                        content=body,
+                        metadata=document.metadata,
+                        hash=document.hash,
+                    )
+                    sub_chunks = self._fallback.chunk(sub_doc)
 
-                for sc in sub_chunks:
-                    sc.document_id = document.id
-                    sc.chunk_index = chunk_idx
-                    chunks.append(sc)
-                    chunk_idx += 1
+                    for idx, sc in enumerate(sub_chunks):
+                        sc.document_id = document.id
+                        sc.chunk_index = chunk_idx
+                        # Prepend heading, marking subsequent chunks as continued
+                        cont = " (cont.)" if idx > 0 else ""
+                        sc.content = f"{heading}{cont}\n{sc.content}"
+                        chunks.append(sc)
+                        chunk_idx += 1
+                else:
+                    # Generic fallback if there is no structural separation
+                    sub_doc = Document(
+                        id=document.id,
+                        content=section_text,
+                        metadata=document.metadata,
+                        hash=document.hash,
+                    )
+                    sub_chunks = self._fallback.chunk(sub_doc)
+
+                    for sc in sub_chunks:
+                        sc.document_id = document.id
+                        sc.chunk_index = chunk_idx
+                        chunks.append(sc)
+                        chunk_idx += 1
             else:
                 chunks.append(
                     Chunk(

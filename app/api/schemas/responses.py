@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class SourceChunk(BaseModel):
     """A safe subset of a Chunk used for citations in the API."""
+
     id: str  # Added for unique identification in the UI
     content: str
     document_id: str
@@ -17,8 +18,10 @@ class SourceChunk(BaseModel):
 
 from app.core.models.query import TokenUsage as CoreTokenUsage
 
+
 class TokenUsage(CoreTokenUsage):
     """API-facing TokenUsage (Inherits from Core)."""
+
     pass
 
 

@@ -46,6 +46,7 @@ class SqliteDocumentStore(BaseDocumentStore):
     async def upsert_document(self, document: Document) -> None:
         """Stores or updates a document using its ID."""
         self._ensure_connected()
+        assert self._db is not None
         await self._db.execute(
             "INSERT OR REPLACE INTO documents (id, content, hash, metadata) VALUES (?, ?, ?, ?)",
             (document.id, document.content, document.hash, document.metadata.model_dump_json()),
@@ -55,8 +56,26 @@ class SqliteDocumentStore(BaseDocumentStore):
     async def get_document(self, doc_id: str) -> Document | None:
         """Retrieves a document by its ID."""
         self._ensure_connected()
+        assert self._db is not None
         async with self._db.execute(
             "SELECT id, content, hash, metadata FROM documents WHERE id = ?", (doc_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                return Document(
+                    id=row[0],
+                    content=row[1],
+                    hash=row[2],
+                    metadata=DocumentMetadata.model_validate_json(row[3]),
+                )
+        return None
+
+    async def get_document_by_hash(self, doc_hash: str) -> Document | None:
+        """Retrieves a document by its content hash. Used for duplicate detection."""
+        self._ensure_connected()
+        assert self._db is not None
+        async with self._db.execute(
+            "SELECT id, content, hash, metadata FROM documents WHERE hash = ?", (doc_hash,)
         ) as cursor:
             row = await cursor.fetchone()
             if row:
@@ -71,12 +90,14 @@ class SqliteDocumentStore(BaseDocumentStore):
     async def delete_document(self, doc_id: str) -> None:
         """Removes a document from the store."""
         self._ensure_connected()
+        assert self._db is not None
         await self._db.execute("DELETE FROM documents WHERE id = ?", (doc_id,))
         await self._db.commit()
 
     async def list_documents(self, limit: int = 100, offset: int = 0) -> list[Document]:
         """Returns a paginated list of all stored documents."""
         self._ensure_connected()
+        assert self._db is not None
         async with self._db.execute(
             "SELECT id, content, hash, metadata FROM documents ORDER BY created_at DESC LIMIT ? OFFSET ?",
             (limit, offset),

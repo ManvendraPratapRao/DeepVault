@@ -23,7 +23,7 @@ from qdrant_client import AsyncQdrantClient
 # Constants
 # ---------------------------------------------------------------------------
 
-DB_PATH    = "deepvault.db"
+DB_PATH = "deepvault.db"
 QDRANT_URL = "http://localhost:6333"
 ALL_STRATEGIES = ["fixed", "sliding", "structure", "semantic"]
 
@@ -32,13 +32,14 @@ ALL_STRATEGIES = ["fixed", "sliding", "structure", "semantic"]
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _clear_sqlite(strategies: list[str]):
     """Remove document rows matching the given strategies from SQLite."""
     if not Path(DB_PATH).exists():
         print(f"[SKIP] SQLite file '{DB_PATH}' not found.")
         return
 
-    conn   = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
     if set(strategies) == set(ALL_STRATEGIES):
@@ -76,6 +77,7 @@ async def _clear_qdrant(strategies: list[str]):
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+
 
 async def reset(strategies: list[str]):
     label = "ALL" if set(strategies) == set(ALL_STRATEGIES) else ", ".join(strategies).upper()

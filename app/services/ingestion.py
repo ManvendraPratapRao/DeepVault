@@ -32,9 +32,10 @@ class IngestionService:
 
     async def ingest_text(
         self, content: str, source: str, author: str | None = None, extra_metadata: dict | None = None
-    ) -> Document:
+    ) -> tuple[Document, int]:
         """
         The core ingestion logic: Hash -> Chunk -> Embed -> Store (SQL + Vector).
+        Returns a tuple of (Document, chunks_created_count).
         """
         start_time = time.perf_counter()
         extra_metadata = extra_metadata or {}
@@ -45,7 +46,7 @@ class IngestionService:
         doc_hash = hashlib.sha256(unique_string.encode()).hexdigest()
 
         # 2. Check for duplicates (Production Safety)
-        existing_doc = await self.doc_store.get_document(doc_hash)
+        existing_doc = await self.doc_store.get_document_by_hash(doc_hash)
         if existing_doc:
             raise DuplicateDocumentError(f"Document with hash {doc_hash} already exists.", detail={"source": source})
 
@@ -68,7 +69,7 @@ class IngestionService:
         try:
             # First, commit to the Vector Store (The most volatile part)
             await self.vector_store.upsert_chunks(chunks)
-            
+
             try:
                 # Second, finalize the Metadata (The final record of truth)
                 await self.doc_store.upsert_document(doc)
@@ -96,9 +97,9 @@ class IngestionService:
             },
         )
 
-        return doc
+        return doc, len(chunks)
 
-    async def ingest_file(self, file_path: Path) -> Document:
+    async def ingest_file(self, file_path: Path) -> tuple[Document, int]:
         """Reads a file (Markdown, Text, or PDF) and delegates to ingest_text."""
         if not file_path.exists():
             raise IngestionError(f"File not found: {file_path}")
@@ -129,22 +130,22 @@ class IngestionService:
                 raise
             raise IngestionError(f"Failed to process {file_path.name}: {str(e)}") from e
 
-    async def ingest_directory(self, dir_path: Path) -> list[tuple[Document, Exception | None]]:
+    async def ingest_directory(self, dir_path: Path) -> list[tuple[Document | None, Exception | None]]:
         """
         Batch processes an entire directory.
         Returns a list of (Document, Error) so one failure doesn't stop the whole job.
         """
-        results = []
+        results: list[tuple[Document | None, Exception | None]] = []
         # Support common text formats
-        files = [f for f in dir_path.glob("**/*") if f.suffix.lower() in [".md", ".txt"]]
+        files = [f for f in dir_path.glob("**/*") if f.suffix.lower() in [".md", ".txt", ".pdf"]]
 
         total = len(files)
         logger.info(f"Starting batch ingestion for {total} files in {dir_path}")
 
         for i, file_path in enumerate(files):
             try:
-                doc = await self.ingest_file(file_path)
-                results.append((doc, None))
+                doc_obj, _ = await self.ingest_file(file_path)
+                results.append((doc_obj, None))
                 logger.info(f"[{i + 1}/{total}] Ingested: {file_path.name}")
             except Exception as e:
                 results.append((None, e))

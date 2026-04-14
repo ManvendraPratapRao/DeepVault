@@ -21,7 +21,7 @@ class CacheService:
         if not settings.CACHE_ENABLED:
             return None
 
-        key = f"query:{hashlib.md5(query_text.encode()).hexdigest()}"
+        key = f"query:{hashlib.sha256(query_text.encode()).hexdigest()}"
         raw_val = await self.redis.get(key)
 
         if raw_val:
@@ -39,7 +39,7 @@ class CacheService:
         if not settings.CACHE_ENABLED:
             return
 
-        key = f"query:{hashlib.md5(query_text.encode()).hexdigest()}"
+        key = f"query:{hashlib.sha256(query_text.encode()).hexdigest()}"
         try:
             # Pydantic v2: model_dump_json() returns a string
             payload = response.model_dump_json()

@@ -5,11 +5,11 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
-from app.api.dependencies import rate_limit_dependency
-from app.config import settings
 
+from app.api.dependencies import rate_limit_dependency
 from app.api.schemas.requests import IngestTextRequest
 from app.api.schemas.responses import IngestResponse
+from app.config import settings
 from app.core.exceptions import DuplicateDocumentError
 from app.dependencies import get_ingestion_service, get_redis_cache
 from app.infrastructure.cache.redis import RedisCache
@@ -20,17 +20,19 @@ router = APIRouter()
 
 @router.post("/text", response_model=IngestResponse)
 async def ingest_text(
-    request: IngestTextRequest, 
+    request: IngestTextRequest,
     service: IngestionService = Depends(get_ingestion_service),
     _auth: str = Depends(rate_limit_dependency),
 ):
     """Processes raw text directly into the system."""
     try:
-        doc = await service.ingest_text(content=request.content, source=request.source, author=request.author)
+        doc, chunks_created = await service.ingest_text(
+            content=request.content, source=request.source, author=request.author
+        )
         return IngestResponse(
             document_id=doc.id,
             source=doc.metadata.source,
-            chunks_created=0,  # Service returns Document, chunks are internal
+            chunks_created=chunks_created,
             message="Text ingested successfully",
         )
     except DuplicateDocumentError as e:
@@ -45,7 +47,7 @@ async def ingest_text(
 
 @router.post("/file", response_model=IngestResponse)
 async def ingest_file(
-    file: UploadFile = File(...), 
+    file: UploadFile = File(...),
     service: IngestionService = Depends(get_ingestion_service),
     _auth: str = Depends(rate_limit_dependency),
 ):
@@ -55,19 +57,18 @@ async def ingest_file(
     file.file.seek(0, 2)
     file_size = file.file.tell()
     file.file.seek(0)
-    
+
     if file_size > settings.MAX_UPLOAD_SIZE_BYTES:
         raise HTTPException(
-            status_code=413, 
-            detail=f"File too large. Maximum size is {settings.MAX_UPLOAD_SIZE_BYTES / (1024*1024)}MB"
+            status_code=413,
+            detail=f"File too large. Maximum size is {settings.MAX_UPLOAD_SIZE_BYTES / (1024 * 1024)}MB",
         )
 
     # 2. Security Check: File Type Validation
     suffix = Path(file.filename).suffix.lower()
     if suffix not in settings.SUPPORTED_FILE_EXTENSIONS:
         raise HTTPException(
-            status_code=415, 
-            detail=f"Unsupported file type '{suffix}'. Supported: {settings.SUPPORTED_FILE_EXTENSIONS}"
+            status_code=415, detail=f"Unsupported file type '{suffix}'. Supported: {settings.SUPPORTED_FILE_EXTENSIONS}"
         )
 
     # 3. Process the file
@@ -76,11 +77,11 @@ async def ingest_file(
         tmp_path = Path(tmp.name)
 
     try:
-        doc = await service.ingest_file(tmp_path)
+        doc, chunks_created = await service.ingest_file(tmp_path)
         return IngestResponse(
             document_id=doc.id,
             source=doc.metadata.source,
-            chunks_created=0,
+            chunks_created=chunks_created,
             message=f"File '{file.filename}' processed and indexed",
         )
     except Exception as e:
@@ -96,7 +97,7 @@ async def _run_async_ingestion(
     """Background task to run ingestion and update Redis with the result."""
     try:
         await redis_cache.set(f"job:{job_id}", json.dumps({"status": "processing"}), ttl_seconds=86400)
-        doc = await service.ingest_text(content=request.content, source=request.source, author=request.author)
+        doc, _ = await service.ingest_text(content=request.content, source=request.source, author=request.author)
         await redis_cache.set(
             f"job:{job_id}",
             json.dumps({"status": "done", "document_id": doc.id, "source": doc.metadata.source}),

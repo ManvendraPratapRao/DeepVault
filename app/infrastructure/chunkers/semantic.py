@@ -17,7 +17,9 @@ class SemanticChunker(BaseChunker):
     Trade-off: Slower ingestion (requires embedding every sentence).
     """
 
-    def __init__(self, embedder, similarity_threshold: float = 0.85, min_chunk_size: int = 100):
+    def __init__(
+        self, embedder, similarity_threshold: float = 0.85, min_chunk_size: int = 100, max_chunk_size: int = 1500
+    ):
         self.strategy_name = "semantic"
         """
         Args:
@@ -28,6 +30,7 @@ class SemanticChunker(BaseChunker):
         self.embedder = embedder
         self.similarity_threshold = similarity_threshold
         self.min_chunk_size = min_chunk_size
+        self.max_chunk_size = max_chunk_size
 
     @staticmethod
     def _cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
@@ -72,7 +75,7 @@ class SemanticChunker(BaseChunker):
         norms = np.linalg.norm(embeddings, axis=1)
         # Avoid division by zero
         norms[norms == 0] = 1e-9
-        
+
         # Dot product of consecutive vectors
         # embeddings[:-1] is sentences [0, n-1], embeddings[1:] is sentences [1, n]
         dots = np.sum(embeddings[:-1] * embeddings[1:], axis=1)
@@ -83,9 +86,12 @@ class SemanticChunker(BaseChunker):
 
         for i, sim in enumerate(similarities):
             # i corresponds to the similarity between sentences[i] and sentences[i+1]
-            if sim < self.similarity_threshold:
-                # Topic shifted — start a new group
-                groups.append([sentences[i + 1]])
+            current_len = sum(len(s) + 1 for s in groups[-1])
+
+            if sim < self.similarity_threshold or current_len > self.max_chunk_size:
+                # Topic shifted or max size reached — start a new group
+                # OVERLAP BRIDGE: Start the new sequence with the last sentence of the previous sequence!
+                groups.append([sentences[i], sentences[i + 1]])
             else:
                 # Same topic — keep grouping
                 groups[-1].append(sentences[i + 1])

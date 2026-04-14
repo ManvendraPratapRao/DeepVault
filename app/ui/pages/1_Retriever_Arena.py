@@ -1,8 +1,9 @@
-import streamlit as st
-import httpx
 import asyncio
 import time
-from typing import List, Dict, Any
+from typing import Any
+
+import httpx
+import streamlit as st
 
 # --- Page Configuration ---
 # Note: Page config must be the first Streamlit command in the page script
@@ -13,7 +14,8 @@ st.set_page_config(
 )
 
 # --- Custom Styling (Premium Aesthetics) ---
-st.markdown("""
+st.markdown(
+    """
 <style>
     .stApp {
         background-color: #0e1117;
@@ -47,22 +49,25 @@ st.markdown("""
         font-family: monospace;
     }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 # --- State Management ---
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
+
 # --- API Helpers ---
 async def query_strategy(
-    text: str, 
-    chunking_strategy: str, 
-    retrieval_strategy: str, 
-    api_url: str, 
+    text: str,
+    chunking_strategy: str,
+    retrieval_strategy: str,
+    api_url: str,
     api_key: str,
-    top_k: int = 5, 
-    temperature: float = 0.0
-) -> Dict[str, Any]:
+    top_k: int = 5,
+    temperature: float = 0.0,
+) -> dict[str, Any]:
     """Call the DeepVault API for a specific chunking strategy."""
     headers = {"X-API-KEY": api_key}
     async with httpx.AsyncClient(timeout=60.0) as client:
@@ -79,43 +84,36 @@ async def query_strategy(
         except Exception as e:
             return {"error": str(e)}
 
+
 # --- Sidebar: Control Center ---
 with st.sidebar:
     st.title("🧩 DeepVault Arena")
     st.subheader("Diagnostic Controls")
-    
+
     API_URL = st.text_input("API Endpoint", value="http://localhost:8000")
     API_KEY = st.text_input("API Token", value="deepvault_secret_key", type="password")
-    
+
     COL1_CHUNK_STRAT = st.selectbox(
-        "Panel A - Chunking Array", 
-        options=["fixed", "sliding", "structure", "semantic"],
-        index=0
+        "Panel A - Chunking Array", options=["fixed", "sliding", "structure", "semantic"], index=0
     )
     COL1_RETRIEVAL_STRAT = st.selectbox(
-        "Panel A - Retrieval Algorithm", 
-        options=["vector", "hybrid", "rerank"],
-        index=0
+        "Panel A - Retrieval Algorithm", options=["vector", "hybrid", "rerank"], index=0
     )
-    
+
     st.divider()
-    
+
     COL2_CHUNK_STRAT = st.selectbox(
-        "Panel B - Chunking Array", 
-        options=["fixed", "sliding", "structure", "semantic"],
-        index=3
+        "Panel B - Chunking Array", options=["fixed", "sliding", "structure", "semantic"], index=3
     )
     COL2_RETRIEVAL_STRAT = st.selectbox(
-        "Panel B - Retrieval Algorithm", 
-        options=["vector", "hybrid", "rerank"],
-        index=0
+        "Panel B - Retrieval Algorithm", options=["vector", "hybrid", "rerank"], index=0
     )
-    
+
     st.divider()
-    
+
     TOP_K = st.slider("Retrieval Depth (Top-K)", min_value=1, max_value=10, value=5)
     TEMPERATURE = st.slider("LLM Temperature", min_value=0.0, max_value=1.0, value=0.0, step=0.1)
-    
+
     if st.button("Clear Arena History"):
         st.session_state.messages = []
         st.rerun()
@@ -134,10 +132,10 @@ for message in st.session_state.messages:
             col_a, col_b = st.columns(2)
             with col_a:
                 st.markdown(f"**{message['strategy_a']['name'].upper()}**")
-                st.write(message['strategy_a']['answer'])
+                st.write(message["strategy_a"]["answer"])
             with col_b:
                 st.markdown(f"**{message['strategy_b']['name'].upper()}**")
-                st.write(message['strategy_b']['answer'])
+                st.write(message["strategy_b"]["answer"])
 
 # Chat Input
 if prompt := st.chat_input("Ask a question about the synthesized corpus..."):
@@ -149,14 +147,14 @@ if prompt := st.chat_input("Ask a question about the synthesized corpus..."):
     # Trigger Generation
     with st.chat_message("assistant"):
         col_a, col_b = st.columns(2)
-        
+
         label_a = f"{COL1_CHUNK_STRAT} / {COL1_RETRIEVAL_STRAT}"
         label_b = f"{COL2_CHUNK_STRAT} / {COL2_RETRIEVAL_STRAT}"
-        
+
         with col_a:
             st.info(f"Inference: {label_a}...")
             container_a = st.empty()
-        
+
         with col_b:
             st.info(f"Inference: {label_b}...")
             container_b = st.empty()
@@ -165,7 +163,7 @@ if prompt := st.chat_input("Ask a question about the synthesized corpus..."):
         async def run_concurrent_queries():
             return await asyncio.gather(
                 query_strategy(prompt, COL1_CHUNK_STRAT, COL1_RETRIEVAL_STRAT, API_URL, API_KEY, TOP_K, TEMPERATURE),
-                query_strategy(prompt, COL2_CHUNK_STRAT, COL2_RETRIEVAL_STRAT, API_URL, API_KEY, TOP_K, TEMPERATURE)
+                query_strategy(prompt, COL2_CHUNK_STRAT, COL2_RETRIEVAL_STRAT, API_URL, API_KEY, TOP_K, TEMPERATURE),
             )
 
         t0 = time.perf_counter()
@@ -178,13 +176,15 @@ if prompt := st.chat_input("Ask a question about the synthesized corpus..."):
                 st.error(f"Error: {res_a['error']}")
             else:
                 container_a.markdown(res_a["answer"])
-                st.markdown(f"<span class='latency-tag'>Latency: {res_a['latency_ms']:.1f}ms</span>", unsafe_allow_html=True)
-                
+                st.markdown(
+                    f"<span class='latency-tag'>Latency: {res_a['latency_ms']:.1f}ms</span>", unsafe_allow_html=True
+                )
+
                 with st.expander(f"🔍 Context X-Ray ({label_a})"):
                     for i, source in enumerate(res_a.get("sources", [])):
                         score = source.get("score")
                         score_display = f"{score * 100:.1f}%" if score is not None else "N/A"
-                        st.markdown(f"**Chunk {i+1}** (Relevance: {score_display})")
+                        st.markdown(f"**Chunk {i + 1}** (Relevance: {score_display})")
                         st.caption(f"Source: {source['metadata'].get('source', 'Unknown')}")
                         st.text_area(f"Content {i}", source["content"], height=150, key=f"a_{i}")
                         st.divider()
@@ -195,19 +195,23 @@ if prompt := st.chat_input("Ask a question about the synthesized corpus..."):
                 st.error(f"Error: {res_b['error']}")
             else:
                 container_b.markdown(res_b["answer"])
-                st.markdown(f"<span class='latency-tag'>Latency: {res_b['latency_ms']:.1f}ms</span>", unsafe_allow_html=True)
-                
+                st.markdown(
+                    f"<span class='latency-tag'>Latency: {res_b['latency_ms']:.1f}ms</span>", unsafe_allow_html=True
+                )
+
                 with st.expander(f"🔍 Context X-Ray ({label_b})"):
                     for i, source in enumerate(res_b.get("sources", [])):
                         score = source.get("score")
                         score_display = f"{score * 100:.1f}%" if score is not None else "N/A"
-                        st.markdown(f"**Chunk {i+1}** (Relevance: {score_display})")
+                        st.markdown(f"**Chunk {i + 1}** (Relevance: {score_display})")
                         st.caption(f"Source: {source['metadata'].get('source', 'Unknown')}")
                         st.text_area(f"Content {i}", source["content"], height=150, key=f"b_{i}")
                         st.divider()
 
-        st.session_state.messages.append({
-            "role": "assistant",
-            "strategy_a": {"name": label_a, "answer": res_a.get("answer", "Error")},
-            "strategy_b": {"name": label_b, "answer": res_b.get("answer", "Error")}
-        })
+        st.session_state.messages.append(
+            {
+                "role": "assistant",
+                "strategy_a": {"name": label_a, "answer": res_a.get("answer", "Error")},
+                "strategy_b": {"name": label_b, "answer": res_b.get("answer", "Error")},
+            }
+        )

@@ -1,4 +1,5 @@
 from typing import Any
+
 from sentence_transformers import SentenceTransformer
 
 from app.config import settings
@@ -20,7 +21,7 @@ class BgeEmbedder(BaseEmbedder):
 
         # BGE models work best with specific instructions for retrieval
         self.instruction = "Represent this sentence for searching relevant passages: "
-        
+
         # Force CPU to prevent silent CUDA hangs during this stabilization phase
         self.model.to("cpu")
         logger.info("BgeEmbedder heart-rate stabilized on CPU.")
@@ -28,6 +29,7 @@ class BgeEmbedder(BaseEmbedder):
     async def _encode(self, texts: str | list[str]) -> Any:
         """Offload synchronous model compute to a thread pool to avoid blocking the event loop."""
         import asyncio
+
         loop = asyncio.get_event_loop()
         # We use the default executor (which we reinforced in dependencies.py)
         return await loop.run_in_executor(None, lambda: self.model.encode(texts, convert_to_numpy=True).tolist())
