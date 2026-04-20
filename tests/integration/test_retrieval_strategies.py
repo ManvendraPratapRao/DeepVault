@@ -17,11 +17,8 @@ import pytest
 
 from app.core.models.document import Chunk, DocumentMetadata
 from app.core.models.query import LLMResult, QueryRequest, TokenUsage
-from app.infrastructure.rerankers.cross_encoder import CrossEncoderReranker
-from app.infrastructure.retrievers.bm25 import BM25Retriever
 from app.infrastructure.retrievers.hybrid import HybridRetriever
 from app.services.query import QueryService
-
 
 # ---------------------------------------------------------------------------
 # Shared Fixtures

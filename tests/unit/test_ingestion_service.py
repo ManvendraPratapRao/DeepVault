@@ -30,7 +30,9 @@ async def test_ingest_text_success(ingestion_service, mock_doc_store, mock_vecto
     # Ensure no existing doc (no duplicate)
     mock_doc_store.get_document_by_hash.return_value = None
 
-    doc, chunks_created = await ingestion_service.ingest_text(content="Test content", source="test.txt", author="Unit Test")
+    doc, chunks_created = await ingestion_service.ingest_text(
+        content="Test content", source="test.txt", author="Unit Test"
+    )
 
     assert doc is not None
     assert doc.content == "Test content"

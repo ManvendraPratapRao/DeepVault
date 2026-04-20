@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from .routes import documents, health, ingest, query
+from .routes import documents, health, ingest, query, stream
 
 api_router = APIRouter()
 
@@ -8,4 +8,5 @@ api_router = APIRouter()
 api_router.include_router(health.router, prefix="/health", tags=["System"])
 api_router.include_router(ingest.router, prefix="/documents", tags=["Ingestion"])
 api_router.include_router(query.router, prefix="/query", tags=["Search"])
+api_router.include_router(stream.router, prefix="/stream", tags=["Streaming"])
 api_router.include_router(documents.router, prefix="/documents", tags=["Management"])

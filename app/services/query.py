@@ -1,5 +1,6 @@
 import time
 
+from app.api.middleware.metrics import record_query_metrics
 from app.core.exceptions import RetrievalError
 from app.core.interfaces.llm_client import BaseLLMClient
 from app.core.interfaces.reranker import BaseReranker
@@ -157,8 +158,109 @@ class QueryService:
             request_id=request_id,
         )
 
+        # Record Prometheus metrics for this query
+        record_query_metrics(
+            retrieval_strategy=strat,
+            chunking_strategy=request.chunking_strategy or "fixed",
+            duration_seconds=latency_ms / 1000,
+            status="success",
+            prompt_tokens=llm_result.usage.prompt_tokens,
+            completion_tokens=llm_result.usage.completion_tokens,
+        )
+
         # 7. Cache the semantic result to radically speed up identical future questions
         if self.cache_service:
             await self.cache_service.cache_response(request.query_text, response)
 
         return response
+
+    async def ask_stream(
+        self,
+        request: QueryRequest,
+        request_id: str = "internal",
+    ):
+        """
+        Streaming variant of the RAG pipeline.
+
+        Runs the full pipeline up to prompt construction, then yields tokens
+        from the LLM stream one-by-one.  Returns an async generator of strings.
+
+        Cache note: streaming responses bypass the query cache on egress.
+        After the stream completes, the full response is cached in a fire-and-
+        forget background task so future identical queries are served instantly.
+        """
+        import asyncio
+
+        from app.core.models.query import TokenUsage
+
+        start_time = time.perf_counter()
+
+        # --- 1. Cache check (same as ask()) ---
+        if self.cache_service:
+            cached = await self.cache_service.get_cached_response(request.query_text)
+            if cached:
+                # Replay from cache token-by-token so the UI still looks "live"
+                for word in cached.answer.split(" "):
+                    yield word + " "
+                return
+
+        # --- 2. Query Rewriting ---
+        search_query = request.query_text
+        if request.use_query_rewriting and self.rewriter:
+            try:
+                search_query = await self.rewriter.rewrite(request.query_text)
+            except Exception as e:
+                logger.error(f"Query rewriting failed in stream: {e}")
+
+        # --- 3. Retrieve ---
+        collection_name = f"deepvault_{request.chunking_strategy}" if request.chunking_strategy else None
+        strat = (request.retrieval_strategy or "vector").lower()
+        fetch_k = request.top_k * 4 if strat == "hybrid_rerank" else request.top_k
+
+        chunks = await self.retriever.retrieve(
+            query=search_query,
+            top_k=fetch_k,
+            filters=request.filters,
+            collection_name=collection_name,
+        )
+
+        if not chunks:
+            yield "[ERROR] No relevant documents found for this query."
+            return
+
+        # --- 4. Optional Reranking ---
+        if strat == "hybrid_rerank" and self.reranker:
+            chunks = await self.reranker.rerank(query=search_query, chunks=chunks, top_k=request.top_k)
+
+        # --- 5. Build Prompt ---
+        context_blocks = []
+        for chunk in chunks:
+            source_info = chunk.metadata.get("source", "Unknown Source")
+            block = f"[Source: {source_info}, Chunk: {chunk.chunk_index}]\n{chunk.content}"
+            context_blocks.append(block)
+
+        context_str = "\n\n---\n\n".join(context_blocks)
+        final_user_prompt = RAG_USER_TEMPLATE.replace("{context}", context_str).replace(
+            "{question}", request.query_text
+        )
+
+        # --- 6. Stream tokens from LLM ---
+        accumulated = ""
+        async for token in self.llm_client.stream(
+            prompt=final_user_prompt, system_prompt=RAG_SYSTEM_PROMPT
+        ):
+            accumulated += token
+            yield token
+
+        # --- 7. Fire-and-forget: cache the full response after stream ends ---
+        if self.cache_service and accumulated:
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            full_response = QueryResponse(
+                answer=accumulated,
+                sources=chunks,
+                usage=TokenUsage(prompt_tokens=0, completion_tokens=0, total_tokens=0),
+                latency_ms=latency_ms,
+                request_id=request_id,
+            )
+            asyncio.create_task(self.cache_service.cache_response(request.query_text, full_response))
+
