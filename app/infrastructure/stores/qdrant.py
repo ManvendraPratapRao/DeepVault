@@ -102,15 +102,18 @@ class QdrantVectorStore(BaseVectorStore):
             conditions = []
             for key, value in filters.items():
                 conditions.append(FieldCondition(key=key, match=MatchValue(value=value)))
-            from typing import Any
-            qdrant_filter = Filter(must=conditions) # type: ignore
+
+            qdrant_filter = Filter(must=conditions)  # type: ignore
+
+        from qdrant_client.models import NearestQuery
 
         # Modern Qdrant SDK (1.1x+) uses the consolidated query_points API.
         # This replaces the deprecated and removed .search() method.
-        # Senior Dev Tip: We use 'query' instead of 'query_vector' and handle the modern response object.
+        # Senior Dev Tip: We use explicit NearestQuery to prevent internal 'OffsetZero' panics
+        # that can occur on some versions with raw vector inputs.
         response = await self.client.query_points(
             collection_name=target_collection,
-            query=query_vector,
+            query=NearestQuery(nearest=query_vector),
             limit=top_k,
             query_filter=qdrant_filter,
             with_payload=True,
@@ -123,7 +126,9 @@ class QdrantVectorStore(BaseVectorStore):
                 content=point.payload["content"] if point.payload else "",
                 chunk_index=point.payload["chunk_index"] if point.payload else 0,
                 score=point.score,
-                metadata={k: v for k, v in (point.payload or {}).items() if k not in ["document_id", "content", "chunk_index"]},
+                metadata={
+                    k: v for k, v in (point.payload or {}).items() if k not in ["document_id", "content", "chunk_index"]
+                },
             )
             for point in response.points
         ]

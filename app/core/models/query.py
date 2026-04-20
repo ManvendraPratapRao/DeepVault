@@ -27,6 +27,7 @@ class QueryRequest(BaseModel):
     session_id: str | None = None
     chunking_strategy: str = "fixed"
     retrieval_strategy: str = "vector"
+    use_query_rewriting: bool = False
     filters: dict[str, Any] | None = None
 
 

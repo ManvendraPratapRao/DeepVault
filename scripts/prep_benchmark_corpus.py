@@ -48,7 +48,6 @@ def gather_benchmark_corpus():
             found_count += 1
         else:
             # Try splitting by underscore for synthetic docs
-            found_any = False
             for chunk in n.split("_"):
                 if normalize(chunk) in file_map:
                     # This might be risky, ignore for now unless needed

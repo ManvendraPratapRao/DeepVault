@@ -69,25 +69,26 @@ All components are programmed against abstract base classes (`app/core/interface
 
 ## Benchmark Results
 
-We ran 200+ questions (60% enterprise synthetic, 40% academic research) through all 4 chunking strategies and measured faithfulness, retrieval precision, and cost.
+We ran 135 questions across **6 retrieval strategies × 4 chunking strategies** using `llama-3.3-70b-versatile` as the LLM judge (faithfulness + relevance scoring).
 
-### Post-Refactor Results (V2 Baseline)
+### Phase 2 Results — Best Configuration per Retrieval Strategy (Fixed Chunking)
 
-| Strategy | Faithfulness (1-5) | Hallucination Rate | Hit Rate @5 | Cost / 1K Queries | Efficiency Index |
-|----------|-------------------|-------------------|-------------|-------------------|-----------------|
-| **Sliding Window** 🏆 | **3.34** | **28.0%** | 94.0% | 6.11¢ | **0.563** |
-| Fixed | 3.22 | 34.0% | 93.3% | 6.19¢ | 0.520 |
-| Structure | 3.08 | 36.0% | 94.0% | 6.16¢ | 0.499 |
-| Semantic | 2.86 | 40.0% | 94.0% | 6.09¢ | 0.468 |
+| Retrieval Strategy | Faithfulness ↑ | Hallucination Rate ↓ | CP@1 ↑ | Cost/1K |
+|-------------------|---------------|---------------------|--------|---------|
+| `vector` (Phase 1 baseline) | 3.20 / 5 | 37.5% | 71.4% | 5.82¢ |
+| **`hybrid` (BM25 + Vector RRF)** 🏆 | **3.30 / 5** | **28.6%** | 71.4% | 5.88¢ |
+| `hybrid_rerank` (+ Cross-Encoder) | 3.02 / 5 | 41.1% | 71.4% | 5.86¢ |
+| `vector_rewrite` (+ Query Expansion) | 3.03 / 5 | 46.7% | 63.3% | 5.79¢ |
 
-*Efficiency Index = Faithfulness / Cost. Higher is better.*
+*Fixed chunking strategy (600 chars, 120 char overlap). Judge: `llama-3.3-70b-versatile`.*
 
-**Key findings:**
-- Sliding Window's sentence-boundary alignment produced a **13.6% improvement** in faithfulness over the V1 baseline.
-- All strategies achieve similar retrieval hit rates (~94%), suggesting the embedding model handles varying chunk geometries well.
-- The current ceiling (~76% Context Precision @1) indicates hybrid retrieval (BM25 + reranking) is the next high-impact improvement.
+**Key Phase 2 Findings:**
+- **Hybrid retrieval reduces hallucinations by 8.9 percentage points** vs vector-only (28.6% → 37.5%), with no latency penalty at p50.
+- BM25 excels at exact-keyword queries (product names, acronyms, standards like ISO 27001) that dense vector search frequently misses.
+- Cross-encoder reranking adds latency (~100-200ms) with mixed quality improvements at this corpus size.
+- Query rewriting is not a universal improvement — it benefits structure-based chunks but degrades sliding window recall.
 
-Full case studies: [V1 Initial Benchmark](docs/case_studies/v1_initial_benchmark.md) | [V2 Post-Refactor](docs/case_studies/v2_post_refactor_benchmark.md)
+Full benchmark analysis: [Phase 2 Benchmark](docs/benchmarks/v2.0.0.md) | [V1 Initial](docs/case_studies/v1_initial_benchmark.md) | [V2 Post-Refactor](docs/case_studies/v2_post_refactor_benchmark.md)
 
 ## Quick Start
 
@@ -209,14 +210,17 @@ deepvault/
 | [003](docs/adrs/003-sqlite-for-metadata.md) | SQLite for metadata store | Zero-config, sufficient for Phase 1, async via aiosqlite |
 | [004](docs/adrs/004-interface-driven-design.md) | ABCs for all components | Enables strategy pattern, easy testing, future extensibility |
 | [005](docs/adrs/005-redis-caching-strategy.md) | Redis for query + embedding cache | Sub-millisecond lookups, TTL-based invalidation |
+| [006](docs/adrs/006-bm25-keyword-retrieval.md) | rank-bm25 over Elasticsearch | Zero infra overhead, bootstrapped from Qdrant payloads |
+| [007](docs/adrs/007-rrf-fusion-strategy.md) | Reciprocal Rank Fusion over weighted scoring | Score-scale independent, robust to outliers |
+| [008](docs/adrs/008-cross-encoder-reranker.md) | ms-marco-MiniLM-L-6-v2 cross-encoder | Best quality/speed tradeoff on CPU, Apache 2.0 license |
 
 ## Roadmap
 
-- [x] **Phase 1** — Core RAG pipeline, caching, evaluation baseline
-- [ ] **Phase 2** — Hybrid retrieval (BM25 + vector), cross-encoder reranking
-- [ ] **Phase 3** — Query router, query decomposition
-- [ ] **Phase 4** — Production hardening (auth, observability, streaming, deployment)
-- [ ] **Phase 5** — Autonomous optimization (A/B testing, feedback loops, cost routing)
+- [x] **Phase 1** — Core RAG pipeline, 4 chunking strategies, Redis caching, evaluation baseline
+- [x] **Phase 2** — Hybrid retrieval (BM25 + vector RRF), cross-encoder reranking, query rewriting, Phase 2 benchmark
+- [ ] **Phase 3** — Query router (factual/semantic/comparison classification), query decomposition
+- [ ] **Phase 4** — Production hardening (JWT auth, Prometheus/Grafana observability, SSE streaming, PostgreSQL, deployment)
+- [ ] **Phase 5** — Autonomous optimization (A/B testing, feedback loops, LLM cost routing)
 
 ## License
 

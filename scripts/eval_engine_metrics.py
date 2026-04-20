@@ -27,9 +27,9 @@ from app.prompts.v1 import JUDGE_FAITHFULNESS_PROMPT, JUDGE_RELEVANCE_PROMPT
 EVAL_RUNS_DIR = Path("data/eval_runs")
 
 # Judging Settings
-FAITH_MODEL = "llama-3.1-8b-instant"
-REL_MODEL = "llama-3.1-8b-instant"
-RPM_LIMIT = 25  # Safe limit under 30RPM cap
+FAITH_MODEL = "llama-3.3-70b-versatile"
+REL_MODEL = "llama-3.3-70b-versatile"
+RPM_LIMIT = 1  # Strictly throttled to 1 Q/min to stay under 12K TPM (max context ~8K)
 
 # Pricing per million tokens (Groq API as of current specs)
 PRICING = {
@@ -63,7 +63,14 @@ class EvalEngine:
         self.limiter = AsyncRateLimiter(RPM_LIMIT)
         self.embedder = BgeEmbedder()
         self.chunking_strategies = chunking_strategies or ["fixed", "sliding", "structure", "semantic"]
-        self.retrieval_strategies = retrieval_strategies or ["vector"]
+        self.retrieval_strategies = retrieval_strategies or [
+            "vector",
+            "hybrid",
+            "hybrid_rerank",
+            "vector_rewrite",
+            "hybrid_rewrite",
+            "hybrid_rerank_rewrite",
+        ]
         self.dry_run = dry_run
         self.session_tokens = 0
 
@@ -92,6 +99,9 @@ class EvalEngine:
         return all_q
 
     def _get_balanced_sample(self, questions: list[dict[str, Any]], total_limit: int = 250) -> list[dict[str, Any]]:
+        # Set a seed to ensure deterministic sampling for resume logic (Session 10+)
+        random.seed(42)
+
         research_q = [q for q in questions if q["category"] == "research"]
         synthetic_q = [q for q in questions if q["category"] == "synthetic"]
 
@@ -194,7 +204,7 @@ class EvalEngine:
     def _write_summary(self, run_id: str, run_dir: Path, results: dict):
         summary = {"run_id": run_id, "by_chunking_strategy": {}}
 
-        for key, logs in results.items():
+        for _key, logs in results.items():
             if not logs:
                 continue
 
@@ -203,7 +213,8 @@ class EvalEngine:
             total_cost = sum(r["cost_usd"] for r in logs)
 
             # Simple averages
-            avg = lambda k: sum(r.get(k, 0) for r in logs) / n
+            def avg(k, _logs=logs, _n=n):
+                return sum(r.get(k, 0) for r in _logs) / _n
 
             # Calculate cost per 1k queries
             cost_cents_1k = (total_cost / n) * 1000 * 100 if n > 0 else 0
@@ -227,7 +238,9 @@ class EvalEngine:
                 "relevance": avg("relevance"),
                 "similarity": avg("similarity"),
                 "hallucination_rate": avg("hallucination"),
+                "p50_latency_ms": np.percentile([r["latency_ms"] for r in logs], 50) if logs else 0,
                 "p95_latency_ms": np.percentile([r["latency_ms"] for r in logs], 95) if logs else 0,
+                "p99_latency_ms": np.percentile([r["latency_ms"] for r in logs], 99) if logs else 0,
                 "total_tokens": sum(r["prompt_tokens"] + r["completion_tokens"] for r in logs),
                 "total_cost_usd": total_cost,
                 "cost_cents_per_1k_queries": cost_cents_1k,
@@ -256,7 +269,7 @@ class EvalEngine:
         with open(index_file, "w") as f:
             json.dump(index, f, indent=2)
 
-    async def run_benchmark(self, limit: int = 50, runs: int = 1):
+    async def run_benchmark(self, limit: int = 50, runs: int = 1, run_id: str | None = None):
         if self.dry_run:
             print(
                 f"\n[DRY RUN] Would evaluate {limit} questions across {len(self.chunking_strategies)} chunking strategies."
@@ -271,12 +284,18 @@ class EvalEngine:
             logger.error("No questions found in dataset!")
             return
 
-        run_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        run_id = f"run_{run_ts}"
+        if not run_id:
+            run_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            run_id = f"run_{run_ts}"
 
         # Support multiple retrieval strategies in different folders (usually just one per run though)
         run_dirs = {}
         for r_strat in self.retrieval_strategies:
+            # 1. Parse Strategy & Siloing
+            # If strategy ends in '_rewrite', we enable rewriting and use the base strategy for API routing
+            is_rewrite_pass = r_strat.endswith("_rewrite")
+            base_r_strat = r_strat.replace("_rewrite", "")
+
             r_dir = EVAL_RUNS_DIR / r_strat / run_id
             r_dir.mkdir(parents=True, exist_ok=True)
             run_dirs[r_strat] = r_dir
@@ -297,6 +316,22 @@ class EvalEngine:
         strategy_keys = [f"{c}_{r}" for c in self.chunking_strategies for r in self.retrieval_strategies]
 
         overall_results = {s: [] for s in strategy_keys}
+
+        # --- RESUME LOGIC (Session 10+) ---
+        # If we are resuming a run, try to load existing progress to save tokens
+        for r_strat in self.retrieval_strategies:
+            res_path = EVAL_RUNS_DIR / r_strat / run_id / "results.json"
+            if res_path.exists():
+                try:
+                    with open(res_path) as f:
+                        existing_data = json.load(f)
+                        for k, v in existing_data.items():
+                            if k in overall_results:
+                                overall_results[k] = v
+                    print(f"Loaded existing results from {res_path} for resumption.")
+                except Exception as e:
+                    print(f"Could not load {res_path}: {e}. Starting fresh for this strategy.")
+
         total_steps = len(strategy_keys) * runs * limit
         current_step = 0
 
@@ -305,6 +340,10 @@ class EvalEngine:
 
             for c_strat in self.chunking_strategies:
                 for r_strat in self.retrieval_strategies:
+                    # Re-derive flags for the loop
+                    is_rewrite_pass = r_strat.endswith("_rewrite")
+                    base_r_strat = r_strat.replace("_rewrite", "")
+
                     strategy_key = f"{c_strat}_{r_strat}"
                     run_dir = run_dirs[r_strat]
 
@@ -312,6 +351,19 @@ class EvalEngine:
 
                     for q_idx, q_item in enumerate(sample):
                         try:
+                            # Normalize strings for robust matching (Session 10+)
+                            def norm(t):
+                                return re.sub(r"[^a-z0-9]", "", str(t).lower())
+
+                            already_done = any(
+                                norm(r["question"]) == norm(q_item["question"])
+                                for r in overall_results.get(strategy_key, [])
+                            )
+                            if already_done:
+                                print(f"  [{strategy_key}] Q {q_idx + 1}/{limit}: (Skipping - Already Cached)")
+                                current_step += 1
+                                continue
+
                             print(
                                 f"  [{strategy_key}] Q {q_idx + 1}/{limit}: {q_item['question'][:50]}...",
                                 end=" ",
@@ -321,10 +373,12 @@ class EvalEngine:
                             await self.limiter.wait()  # Cap requests
 
                             start_time = time.perf_counter()
+                            # Use original question, but pass to the RAG loop
                             req = QueryRequest(
                                 query_text=q_item["question"],
                                 chunking_strategy=c_strat,
-                                retrieval_strategy=r_strat,
+                                retrieval_strategy=base_r_strat,
+                                use_query_rewriting=is_rewrite_pass,
                                 top_k=5,
                             )
                             resp = await self.query_service.ask(req)
@@ -334,7 +388,8 @@ class EvalEngine:
                             retrieved_docs_raw = [c.metadata.get("source", "").lower() for c in resp.sources]
 
                             # Clean punctuation from retrieved sources and target doc for matching
-                            clean = lambda text: re.sub(r"[^a-z0-9]", "", str(text).lower())
+                            def clean(text):
+                                return re.sub(r"[^a-z0-9]", "", str(text).lower())
 
                             retrieved_docs = [clean(d) for d in retrieved_docs_raw]
                             target_doc = clean(q_item["source_document"])
@@ -416,12 +471,15 @@ class EvalEngine:
                             },
                         )
 
-                    # Write progressive summary (per strategy completion)
-                    self._write_summary(run_id, run_dir, overall_results)
+                    # Silo Saving Logic: Only write results belonging to THIS retrieval strategy folder
+                    silo_results = {k: v for k, v in overall_results.items() if k.endswith(f"_{r_strat}")}
 
-                    # Write results.json continuously
+                    # Write progressive summary (per strategy completion)
+                    self._write_summary(run_id, run_dir, silo_results)
+
+                    # Write results.json continuously (only this silo's data)
                     with open(run_dir / "results.json", "w") as f:
-                        json.dump(overall_results, f, indent=2)
+                        json.dump(silo_results, f, indent=2)
 
         print(
             f"\n[DONE] Evaluation complete! Results saved to {EVAL_RUNS_DIR}/{self.retrieval_strategies[-1]}/{run_id}"
@@ -432,6 +490,7 @@ def main():
     parser = argparse.ArgumentParser(description="DeepVault Gold-Standard Evaluation Engine")
     parser.add_argument("--limit", type=int, default=50, help="Number of questions to evaluate per strategy")
     parser.add_argument("--runs", type=int, default=1, help="Number of times to run the sample set")
+    parser.add_argument("--run-id", type=str, help="Existing Run ID to resume from")
     parser.add_argument(
         "--chunking-strategies",
         nargs="+",
@@ -439,7 +498,10 @@ def main():
         help="Specific chunking strategies to test",
     )
     parser.add_argument(
-        "--retrieval-strategies", nargs="+", default=["vector"], help="Specific retrieval strategies to test"
+        "--retrieval-strategies",
+        nargs="+",
+        default=["vector", "hybrid", "hybrid_rerank", "vector_rewrite", "hybrid_rewrite", "hybrid_rerank_rewrite"],
+        help="Specific retrieval strategies to test",
     )
     parser.add_argument("--dry-run", action="store_true", help="Print stats without calling API")
 
@@ -452,7 +514,7 @@ def main():
         retrieval_strategies=args.retrieval_strategies,
         dry_run=args.dry_run,
     )
-    asyncio.run(engine.run_benchmark(limit=args.limit, runs=args.runs))
+    asyncio.run(engine.run_benchmark(limit=args.limit, runs=args.runs, run_id=args.run_id))
 
 
 if __name__ == "__main__":

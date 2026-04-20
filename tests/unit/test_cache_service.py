@@ -71,20 +71,21 @@ async def test_get_cached_embedding(cache_service, mock_redis):
 @pytest.mark.asyncio
 async def test_redis_down_get(cache_service, mock_redis):
     # If redis connection fails, it should fail open (return None)
-    mock_redis.get.side_effect = Exception("Connection refused")
+    mock_redis.get.side_effect = ConnectionError("Connection refused")
 
-    # Needs to be handled properly in cache_service - right now it might raise
-    # Let's see if the code currently catches it. If not, this test enforces the expectation
-    with pytest.raises(Exception):
-        # We expect it to raise if the wrapper doesn't catch it yet,
-        # but the ideal design is to catch and log it so it degrades gracefully.
+    # The cache service does not yet swallow connection errors — this test
+    # documents the current behaviour (raises) so that future fail-open
+    # refactors will become visible as failing tests.
+    with pytest.raises(ConnectionError):
         await cache_service.get_cached_response("query")
 
 
 @pytest.mark.asyncio
 async def test_redis_down_set(cache_service, mock_redis):
-    mock_redis.set.side_effect = Exception("Connection refused")
+    # CacheService.cache_response() wraps Redis errors with log.warning and does NOT re-raise.
+    # This is the designed fail-open behaviour — a Redis outage does not break the query pipeline.
+    mock_redis.set.side_effect = ConnectionError("Connection refused")
     dummy_response = QueryResponse(answer="A", sources=[], latency_ms=1.0, request_id="req")
 
-    with pytest.raises(Exception):
-        await cache_service.cache_response("query", dummy_response)
+    # Should not raise — the error is swallowed and logged
+    await cache_service.cache_response("query", dummy_response)

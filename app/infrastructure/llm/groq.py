@@ -46,7 +46,7 @@ class GroqLLMClient(BaseLLMClient):
         messages.append({"role": "user", "content": prompt})
 
         try:
-            from typing import Any
+
             completion = await self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,  # type: ignore
@@ -55,20 +55,24 @@ class GroqLLMClient(BaseLLMClient):
             )
 
             # Extract telemetry from Groq usage object
+            groq_usage = completion.usage
             usage = TokenUsage(
-                prompt_tokens=completion.usage.prompt_tokens,
-                completion_tokens=completion.usage.completion_tokens,
-                total_tokens=completion.usage.total_tokens,
+                prompt_tokens=groq_usage.prompt_tokens if groq_usage else 0,
+                completion_tokens=groq_usage.completion_tokens if groq_usage else 0,
+                total_tokens=groq_usage.total_tokens if groq_usage else 0,
             )
 
-            return LLMResult(answer=completion.choices[0].message.content, usage=usage)
+            answer = completion.choices[0].message.content or ""
+            return LLMResult(answer=answer, usage=usage)
         except (groq.RateLimitError, groq.APIConnectionError, groq.InternalServerError):
             raise  # Let tenacity handle these
         except Exception as e:
             logger.error(f"Groq API Error: {str(e)}", extra={"extra_fields": {"model": self.model}})
             raise
 
-    async def stream(self, prompt: str, system_prompt: str | None = None) -> AsyncGenerator[str]:
+    async def stream(  # type: ignore[override]
+        self, prompt: str, system_prompt: str | None = None
+    ) -> AsyncGenerator[str]:  # noqa: E501
         """Streams the response token-by-token for the UI."""
         messages = []
         if system_prompt:
@@ -76,7 +80,6 @@ class GroqLLMClient(BaseLLMClient):
         messages.append({"role": "user", "content": prompt})
 
         try:
-            from typing import Any
             stream_resp = await self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,  # type: ignore

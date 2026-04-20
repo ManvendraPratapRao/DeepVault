@@ -1,6 +1,6 @@
 [project]
 name = "deepvault"
-version = "1.0.0"
+version = "2.0.0"
 description = "Enterprise-grade autonomous RAG system for high-performance semantic search and retrieval"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -30,6 +30,7 @@ dev = [
     "mypy>=1.20.0",
     "pytest>=9.0.2",
     "pytest-asyncio>=0.26.0",
+    "pytest-cov>=7.1.0",
     "ruff>=0.15.9",
 ]
 
@@ -46,6 +47,14 @@ target-version = "py313"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
 ignore = ["B008"]
+
+[tool.ruff.lint.per-file-ignores]
+# Prompt files contain intentional multi-line strings that cannot be wrapped
+"app/prompts/**" = ["E501"]
+# Scripts contain long f-strings in print/argparse that are hard to break cleanly
+"scripts/**" = ["E501"]
+# Streamlit UI files have long inline HTML strings
+"app/ui/**" = ["E501"]
 
 [tool.mypy]
 python_version = "3.13"

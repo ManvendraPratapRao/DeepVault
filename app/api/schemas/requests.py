@@ -18,5 +18,7 @@ class QueryAPIRequest(BaseModel):
     top_k: int = Field(5, ge=1, le=20, description="Number of context chunks to retrieve")
     chunking_strategy: str = Field("fixed", description="Specific chunking strategy to evaluate (fixed, sliding, etc.)")
     retrieval_strategy: str = Field("vector", description="Search algorithm (vector, hybrid, etc.)")
+    use_query_rewriting: bool = Field(False, description="Whether to use AI-powered query expansion/rewriting")
+    user_id: str | None = Field(None, description="Optional ID of the user performing the query")
     filters: dict[str, Any] | None = Field(None, description="Metadata filters (e.g., {'author': 'HR'})")
     session_id: str | None = Field(None, description="Optional ID to track conversation history")

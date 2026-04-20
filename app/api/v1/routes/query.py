@@ -4,6 +4,7 @@ from fastapi.security import APIKeyHeader
 from app.api.schemas.requests import QueryAPIRequest
 from app.api.schemas.responses import QueryAPIResponse
 from app.config import settings
+from app.core.models.query import QueryRequest
 from app.dependencies import get_query_service
 from app.services.query import QueryService
 
@@ -28,9 +29,17 @@ async def query_search(
     # We pull the request_id from our Middleware
     request_id = getattr(fastapi_req.state, "request_id", "internal")
 
-    # [SENIOR AUDIT FIX]: We remove the redundant try/except here.
-    # Allowing raw exceptions to bubble up to the global handler in main.py
-    # ensures that we get full tracebacks and structured error responses
-    # instead of masked 'HTTPException' 500s.
-    response = await service.ask(request, request_id=request_id)
+    # Map API request schema → internal service model
+    service_request = QueryRequest(
+        query_text=request.query_text,
+        top_k=request.top_k,
+        chunking_strategy=request.chunking_strategy,
+        retrieval_strategy=request.retrieval_strategy,
+        use_query_rewriting=request.use_query_rewriting,
+        user_id=request.user_id,
+        session_id=request.session_id,
+        filters=request.filters,
+    )
+
+    response = await service.ask(service_request, request_id=request_id)
     return response

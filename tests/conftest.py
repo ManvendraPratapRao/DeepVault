@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from app.core.models.document import Chunk, Document, DocumentMetadata
+from app.core.models.query import LLMResult, TokenUsage
 
 
 @pytest.fixture
@@ -57,14 +58,18 @@ def mock_embedder():
 @pytest.fixture
 def mock_llm_client():
     llm = AsyncMock()
-    llm.generate.return_value = "This is a mocked LLM answer."
+    llm.generate.return_value = LLMResult(
+        answer="This is a mocked LLM answer.",
+        usage=TokenUsage(prompt_tokens=100, completion_tokens=50, total_tokens=150),
+    )
     return llm
 
 
 @pytest.fixture
 def mock_doc_store(sample_document):
     store = AsyncMock()
-    # By default, mock getting a document to return the sample
+    # By default, no existing docs (no duplicates)
+    store.get_document_by_hash.return_value = None
     store.get_document.return_value = sample_document
     # Mock list to return a single document
     store.list_documents.return_value = [sample_document]

@@ -1,65 +1,163 @@
-# DeepVault Observability & Debugging Guide
+# Observability Guide — Prometheus Metrics and Grafana
 
-DeepVault has been upgraded from "Silent Failure" mode to "Hardened High-Fidelity" mode. This guide explains how to use the new observability tools to debug and stabilize the RAG pipeline.
-
-## 🔴 The "Red Alert" Exception Handler
-We have implemented a global "Red Alert" handler in [main.py](file:///d:/ML%20PROJECTS/deepvault/app/main.py). 
-
-### How it Works:
-If any unhandled exception occurs in the FastAPI backbone, the system will:
-1.  **Intercept** the crash before it returns a generic 500.
-2.  **Extract** the full Python traceback.
-3.  **Explode** the output into your terminal/stderr with high-fidelity formatting.
-4.  **Assigne** a unique `request_id` to correlate the error across the API and the UI.
-
-### Interpretation:
-When you see a large block of text starting with `🔥 DEEPVAULT CRITICAL ERROR`, look for:
-- **Error Type**: (e.g., `AuthenticationError`, `ValidationError`)
-- **Traceback**: The exact line in the code where the failure originated.
-- **Request ID**: Use this to find relevant logs in the JSON stream.
+**Phase:** 4 (Production Hardening)  
+**Status:** Planned — Implementation Pending (Session 17–18)
 
 ---
 
-## 📊 Structured JSON Logging
-All application logs are now output as structured JSON. This is essential for professional monitoring and automated analysis.
+## Overview
 
-### Standard Log Format:
-```json
-{
-  "timestamp": "2026-04-10T04:19:26.319503+00:00",
-  "level": "INFO",
-  "message": "Query answered successfully (Cache Miss)",
-  "module": "query",
-  "function": "ask",
-  "request_id": "50438a1c-b712-49c1-b8f3-0b6c632f3fe4",
-  "latency_ms": 989.6,
-  "cache_miss": true
-}
+This document describes the planned observability stack for DeepVault. The goal is to expose production metrics via a `/metrics` endpoint (Prometheus) and visualize them through Grafana dashboards.
+
+---
+
+## Planned Metrics
+
+### Query Latency
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `deepvault_query_duration_seconds` | Histogram | `chunking_strategy`, `retrieval_strategy` | End-to-end query latency |
+| `deepvault_retrieval_duration_seconds` | Histogram | `retrieval_strategy` | Retrieval-only latency |
+| `deepvault_llm_duration_seconds` | Histogram | `model` | LLM generation latency |
+| `deepvault_reranking_duration_seconds` | Histogram | — | Cross-encoder reranking latency |
+
+### Throughput and Errors
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `deepvault_queries_total` | Counter | `status` (success/error), `retrieval_strategy` | Total queries processed |
+| `deepvault_ingestion_documents_total` | Counter | `chunking_strategy` | Documents ingested |
+| `deepvault_errors_total` | Counter | `error_type` | Total errors by type |
+
+### Cache Performance
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `deepvault_cache_hits_total` | Counter | `cache_type` (query/embedding) | Cache hits |
+| `deepvault_cache_misses_total` | Counter | `cache_type` | Cache misses |
+
+### LLM Cost Tracking
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `deepvault_llm_tokens_total` | Counter | `model`, `token_type` (prompt/completion) | Token consumption |
+| `deepvault_llm_cost_usd_total` | Counter | `model` | Estimated USD cost |
+
+---
+
+## Implementation Plan (Session 17)
+
+### 1. Add prometheus-client dependency
+
+```toml
+# pyproject.toml
+[tool.uv.dependencies]
+prometheus-client = ">=0.20"
 ```
 
-### Pro-Tips for Debugging:
-- **Filtering**: Use `grep` or a local log viewer to filter by `request_id`.
-- **Latency Tracking**: Every response log includes `latency_ms`. Use this to find bottlenecks in the Embedding vs. Retrieval vs. Generation phases.
+### 2. Create Metrics Middleware
+
+```python
+# app/api/middleware/metrics.py
+from prometheus_client import Counter, Histogram, make_asgi_app
+import time
+
+QUERY_DURATION = Histogram(
+    "deepvault_query_duration_seconds",
+    "End-to-end query latency",
+    labelnames=["retrieval_strategy", "chunking_strategy"]
+)
+
+QUERY_TOTAL = Counter(
+    "deepvault_queries_total",
+    "Total queries processed",
+    labelnames=["status", "retrieval_strategy"]
+)
+```
+
+### 3. Expose /metrics Endpoint
+
+```python
+# app/main.py
+from prometheus_client import make_asgi_app
+metrics_app = make_asgi_app()
+app.mount("/metrics", metrics_app)
+```
 
 ---
 
-## 🧪 Health Check Protocols
-Before declaring a production crisis, run these two built-in diagnostics:
+## Grafana Dashboard Configuration (Session 18)
 
-1. **Authentication Check**:
-   ```pwsh
-   uv run python scripts/auth_diagnostic.py
-   ```
-   *Validates if your `.env` key is being shadowed or if it contains non-ASCII characters.*
+Three dashboards are planned:
 
-2. **End-to-End Check** (requires API running on port 8000):
-   ```pwsh
-   uv run python scripts/check_qdrant_counts.py
-   ```
-   *Confirms all 4 Qdrant strategy collections are populated before running evaluations.*
+### Dashboard 1: System Overview
+- Query rate (req/min)
+- p50/p95/p99 query latency
+- Error rate
+- Cache hit rate
+
+### Dashboard 2: LLM Cost Tracker
+- Tokens per hour (prompt vs completion)
+- Estimated cost per hour (USD)
+- Cost by retrieval strategy
+- Running total cost
+
+### Dashboard 3: Retrieval Performance
+- Hit rate by chunking strategy
+- Latency by retrieval strategy (vector vs hybrid vs hybrid_rerank)
+- Reranking latency overhead
 
 ---
 
-## 🚀 Best Practices for Maintenance
-- **Key Changes**: When updating API keys, always restart the terminal session and run `.\dev.ps1` to clear environment caches.
-- **SDK Updates**: If you update `qdrant-client`, always check [qdrant.py](file:///d:/ML%20PROJECTS/deepvault/app/infrastructure/stores/qdrant.py) for dialect shifts in `.query_points()`.
+## Docker Compose Setup (Session 18)
+
+Add Prometheus and Grafana to `docker/docker-compose.yml`:
+
+```yaml
+services:
+  prometheus:
+    image: prom/prometheus:v2.50.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml
+
+  grafana:
+    image: grafana/grafana:10.2.0
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./docker/grafana/dashboards:/etc/grafana/provisioning/dashboards
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=deepvault
+```
+
+Prometheus scrape config (`docker/prometheus.yml`):
+
+```yaml
+scrape_configs:
+  - job_name: "deepvault"
+    static_configs:
+      - targets: ["api:8000"]
+    metrics_path: "/metrics"
+    scrape_interval: 15s
+```
+
+---
+
+## Current Observability (Available Now)
+
+While Prometheus is pending, DeepVault already provides:
+
+- **Structured JSON logs** — every request has a correlation ID, latency, token usage, and cache status.
+- **Token usage** in `QueryResponse.usage` — prompt tokens, completion tokens, model name.
+- **Eval pipeline cost tracking** — per-query cost in `data/eval_runs/*/token_usage.json`.
+- **Health endpoint** — `GET /api/v1/health` checks Qdrant, Redis, and embedder status.
+
+To view live logs during development:
+
+```bash
+# JSON logs from the running API
+make dev 2>&1 | python -c "import sys,json; [print(json.dumps(json.loads(l), indent=2)) for l in sys.stdin]"
+```

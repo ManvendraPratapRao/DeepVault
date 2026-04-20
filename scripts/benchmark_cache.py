@@ -29,7 +29,7 @@ async def run_benchmark():
         latencies = []
 
         for i in range(10):
-            start = time.perf_counter()
+            time.perf_counter()
             resp = await client.post(f"{API_URL}/api/v1/query", json=query_payload)
             if resp.status_code == 200:
                 data = resp.json()

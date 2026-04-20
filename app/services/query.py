@@ -2,7 +2,9 @@ import time
 
 from app.core.exceptions import RetrievalError
 from app.core.interfaces.llm_client import BaseLLMClient
+from app.core.interfaces.reranker import BaseReranker
 from app.core.interfaces.retriever import BaseRetriever
+from app.core.interfaces.rewriter import BaseQueryRewriter
 from app.core.models.query import QueryRequest, QueryResponse
 from app.infrastructure.logging.structured import logger
 from app.prompts.v1 import RAG_SYSTEM_PROMPT, RAG_USER_TEMPLATE
@@ -16,16 +18,18 @@ class QueryService:
     """
 
     def __init__(
-        self, 
-        retriever: BaseRetriever, 
-        llm_client: BaseLLMClient, 
+        self,
+        retriever: BaseRetriever,
+        llm_client: BaseLLMClient,
         cache_service: CacheService | None = None,
-        reranker: "BaseReranker | None" = None
+        reranker: BaseReranker | None = None,
+        rewriter: BaseQueryRewriter | None = None,
     ):
         self.retriever = retriever
         self.llm_client = llm_client
         self.cache_service = cache_service
         self.reranker = reranker
+        self.rewriter = rewriter
 
     async def ask(self, request: QueryRequest, request_id: str = "internal") -> QueryResponse:
         """
@@ -47,6 +51,15 @@ class QueryService:
                 cached_resp.latency_ms = (time.perf_counter() - start_time) * 1000
                 return cached_resp
 
+        # 2. Query Rewriting (Session 8)
+        # Expansion helps the retriever find results for vague or abbreviated queries
+        search_query = request.query_text
+        if request.use_query_rewriting and self.rewriter:
+            try:
+                search_query = await self.rewriter.rewrite(request.query_text)
+            except Exception as e:
+                logger.error(f"Query rewriting failed: {e}. Falling back to raw query.")
+
         # 2. Retrieve relevant chunks from the Vector Store
         # We target the strategy-specific collection if requested
         collection_name = f"deepvault_{request.chunking_strategy}" if request.chunking_strategy else None
@@ -55,30 +68,26 @@ class QueryService:
         valid_strategies = {"vector", "hybrid", "hybrid_rerank"}
         strat = (request.retrieval_strategy or "vector").lower()
         if strat not in valid_strategies:
-            raise NotImplementedError(
-                f"Retrieval strategy '{strat}' is not yet implemented. "
-                f"Known: {valid_strategies}"
-            )
-        
+            raise NotImplementedError(f"Retrieval strategy '{strat}' is not yet implemented. Known: {valid_strategies}")
+
+        collection_display = collection_name or "Default"
         logger.info(
-            f"Strategy Routing: Chunking='{request.chunking_strategy}', Retrieval='{strat}' -> Collection='{collection_name or 'Default'}'",
+            f"Strategy: chunking={request.chunking_strategy!r} "
+            f"retrieval={strat!r} collection={collection_display!r}",
             extra={
                 "extra_fields": {
-                    "chunking_strategy": request.chunking_strategy, 
-                    "retrieval_strategy": strat, 
-                    "collection": collection_name
+                    "chunking_strategy": request.chunking_strategy,
+                    "retrieval_strategy": strat,
+                    "collection": collection_name,
                 }
-            }
+            },
         )
-        
+
         # If we are reranking, we fetch more candidate chunks initially
         fetch_k = request.top_k * 4 if strat == "hybrid_rerank" else request.top_k
 
         chunks = await self.retriever.retrieve(
-            query=request.query_text, 
-            top_k=fetch_k, 
-            filters=request.filters,
-            collection_name=collection_name
+            query=search_query, top_k=fetch_k, filters=request.filters, collection_name=collection_name
         )
 
         # 2. Handle empty retrieval (Production Safety)
@@ -88,11 +97,7 @@ class QueryService:
         # 3. Optional Reranking Step (Session 7)
         if strat == "hybrid_rerank" and self.reranker:
             logger.info(f"Reranking {len(chunks)} candidate chunks using Cross-Encoder...")
-            chunks = await self.reranker.rerank(
-                query=request.query_text,
-                chunks=chunks,
-                top_k=request.top_k
-            )
+            chunks = await self.reranker.rerank(query=search_query, chunks=chunks, top_k=request.top_k)
             logger.info(f"Reranking complete. Selected top {len(chunks)} semantic matches.")
 
         # 3. Build the Context String with citations

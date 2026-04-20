@@ -12,7 +12,7 @@ DeepVault follows a **Hexagonal (Ports and Adapters)** architecture. Business lo
 | **Infrastructure** | `app/infrastructure/` | Concrete implementations (Qdrant, Groq, Redis, SQLite, BGE embedder) |
 | **Prompts** | `app/prompts/` | Versioned prompt templates for RAG and evaluation |
 
-## Component Diagram
+## Component Diagram (Phase 2)
 
 ```mermaid
 graph TD
@@ -33,6 +33,8 @@ graph TD
         IS -.-> VS[BaseVectorStore]
         IS -.-> MS[BaseDocumentStore]
         QS -.-> RT[BaseRetriever]
+        QS -.-> RNK[BaseReranker]
+        QS -.-> RW[BaseQueryRewriter]
         QS -.-> LLM[BaseLLMClient]
         QS -.-> CS[CacheService]
     end
@@ -43,6 +45,10 @@ graph TD
         CH --> C3[StructureChunker]
         CH --> C4[SemanticChunker]
         RT --> VR[VectorRetriever]
+        RT --> BM25[BM25Retriever]
+        RT --> HY[HybridRetriever ← VR + BM25]
+        RNK --> CE[CrossEncoderReranker]
+        RW --> GQR[GroqQueryRewriter]
         LLM --> GR[GroqLLMClient]
         EM --> BGE[BgeEmbedder]
         VS --> QD[(Qdrant)]
@@ -62,13 +68,26 @@ File/Text → Hash Check → Chunker → Embedder → Qdrant (vectors) + SQLite 
 - Embeddings are computed in batch via the BGE model.
 - Storage uses an inverted write strategy: vectors are written first, then metadata. If metadata storage fails, orphaned vectors are cleaned up from Qdrant.
 
-### Query Pipeline
+### Query Pipeline (Phase 2)
+
+**Strategy: `vector` (default)**
 ```
-Question → Cache Check → Embed Query → Vector Search → Build Prompt → LLM → Cache Result → Return
+Question → [Cache Check] → [Query Rewriter?] → Embed Query → Qdrant Vector Search → Build Prompt → LLM → [Cache] → Return
 ```
-- Queries first check the Redis cache for an exact hash match.
-- On cache miss, the query is embedded and sent to Qdrant for similarity search.
-- Retrieved chunks are assembled into a prompt with source citations.
+
+**Strategy: `hybrid`**
+```
+Question → [Cache Check] → [Query Rewriter?] → Parallel(Vector Search, BM25 Search) → RRF Fusion → Build Prompt → LLM → [Cache] → Return
+```
+
+**Strategy: `hybrid_rerank`**
+```
+Question → [Cache Check] → [Query Rewriter?] → Parallel(Vector Search × 4, BM25 × 4) → RRF Fusion → CrossEncoder(top-20 → top-5) → Build Prompt → LLM → [Cache] → Return
+```
+
+- All strategies check the Redis cache first (hash-exact match).
+- Query rewriting is opt-in per request via `use_query_rewriting=true`.
+- Retrieved chunks include source filename and chunk index for citation.
 - The LLM response includes token usage telemetry for cost tracking.
 
 ## Dependency Injection
@@ -78,10 +97,21 @@ All services receive their dependencies via constructor injection. The `app/depe
 ```python
 async def get_query_service() -> QueryService:
     return QueryService(
-        retriever=await get_retriever(),
+        retriever=await get_retriever(),       # Vector, BM25, or Hybrid
         llm_client=await get_llm_client(),
         cache_service=await get_cache_service(),
+        reranker=await get_reranker(),         # Only if hybrid_rerank
+        rewriter=await get_query_rewriter(),
     )
 ```
 
 This makes testing straightforward — each service can be instantiated with mock dependencies.
+
+## Further Reading
+
+- [Phase 2 Retrieval Architecture](architecture/phase2-retrieval-architecture.md)
+- [ADR-006: BM25 Keyword Retrieval](adrs/006-bm25-keyword-retrieval.md)
+- [ADR-007: RRF Fusion Strategy](adrs/007-rrf-fusion-strategy.md)
+- [ADR-008: Cross-Encoder Reranker](adrs/008-cross-encoder-reranker.md)
+- [Benchmark v2.0.0: Phase 2 Results](benchmarks/v2.0.0.md)
+

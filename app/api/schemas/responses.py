@@ -2,6 +2,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.core.models.query import TokenUsage as CoreTokenUsage
+
 
 class SourceChunk(BaseModel):
     """A safe subset of a Chunk used for citations in the API."""
@@ -14,9 +16,6 @@ class SourceChunk(BaseModel):
     metadata: dict[str, Any]
 
     model_config = ConfigDict(from_attributes=True)
-
-
-from app.core.models.query import TokenUsage as CoreTokenUsage
 
 
 class TokenUsage(CoreTokenUsage):

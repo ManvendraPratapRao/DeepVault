@@ -1,5 +1,5 @@
 import asyncio
-import numpy as np
+
 from sentence_transformers import CrossEncoder
 
 from app.core.interfaces.reranker import BaseReranker
@@ -17,7 +17,7 @@ class CrossEncoderReranker(BaseReranker):
         logger.info(f"Loading Cross-Encoder Reranker model: {model_name}")
         # The cross encoder loads synchronously into memory/device
         self.encoder = CrossEncoder(model_name)
-        
+
     async def rerank(self, query: str, chunks: list[Chunk], top_k: int = 5) -> list[Chunk]:
         if not chunks:
             return []
@@ -34,18 +34,18 @@ class CrossEncoderReranker(BaseReranker):
             # We predict synchronously, offload to thread to prevent blocking the async loop
             # ms-marco models output raw logits, we don't necessarily need sigmoid
             scores = await asyncio.to_thread(self.encoder.predict, pairs)
-            
+
             # Pair each chunk with its new score
-            scored_chunks = list(zip(chunks, scores))
-            
+            scored_chunks = list(zip(chunks, scores, strict=False))
+
             # Sort descending by score
             scored_chunks.sort(key=lambda x: x[1], reverse=True)
-            
+
             logger.info(f"Cross-Encoder successfully reranked {len(chunks)} chunks.")
-            
+
             # Return top_k chunks (peel off the score tuple)
             return [chunk for chunk, score in scored_chunks[:top_k]]
-            
+
         except Exception as e:
             logger.error(f"Cross-Encoder reranking failed: {e}")
             # Fall fail-open: return default retrieved chunks

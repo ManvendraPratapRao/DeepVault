@@ -65,7 +65,8 @@ async def ingest_file(
         )
 
     # 2. Security Check: File Type Validation
-    suffix = Path(file.filename).suffix.lower()
+    filename = file.filename or ""
+    suffix = Path(filename).suffix.lower()
     if suffix not in settings.SUPPORTED_FILE_EXTENSIONS:
         raise HTTPException(
             status_code=415, detail=f"Unsupported file type '{suffix}'. Supported: {settings.SUPPORTED_FILE_EXTENSIONS}"

@@ -140,7 +140,7 @@ class QAGenerator:
         logger.info(f"Found {len(pdf_files)} PDF files.")
 
         # Sequential processing is slower but safer for rate limits and state management
-        for i, pdf in enumerate(pdf_files):
+        for _i, pdf in enumerate(pdf_files):
             await self.generate_for_paper(pdf)
             # More generous sleep to avoid 429
             await asyncio.sleep(2)

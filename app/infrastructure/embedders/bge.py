@@ -52,7 +52,7 @@ class BgeEmbedder(BaseEmbedder):
 
     async def embed_batch(self, texts: list[str]) -> list[list[float]]:
         """Embed documents (NO instruction prefix) intelligently using cache."""
-        results = [None] * len(texts)
+        results: list[list[float] | None] = [None] * len(texts)
         uncached_indices = []
         uncached_texts = []
 
@@ -74,13 +74,14 @@ class BgeEmbedder(BaseEmbedder):
             new_embeddings = await self._encode(uncached_texts)
 
             # 3. Merge back and cache newly computed
-            for idx, emb, txt in zip(uncached_indices, new_embeddings, uncached_texts):
+            for idx, emb, txt in zip(uncached_indices, new_embeddings, uncached_texts, strict=False):
                 results[idx] = emb
                 if self.cache_service:
                     await self.cache_service.cache_embedding(txt, emb)
 
-        return results
+        # Filter out any remaining None slots (shouldn't happen but satisfies type checker)
+        return [r for r in results if r is not None]
 
     def get_dimension(self) -> int:
         """Return the dimension of the embedding vector."""
-        return self.model.get_sentence_embedding_dimension()
+        return self.model.get_sentence_embedding_dimension() or 384

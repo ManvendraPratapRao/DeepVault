@@ -68,6 +68,20 @@ def get_runs(strategy: str):
     return runs
 
 
+def get_available_strategies():
+    """Dynamically discover retrieval strategy folders from disk."""
+    if not EVAL_RUNS_DIR.exists():
+        return []
+    strategies = []
+    for folder in sorted(EVAL_RUNS_DIR.iterdir()):
+        if folder.is_dir() and not folder.name.startswith("."):
+            # Only include folders that contain at least one run_ subfolder
+            has_runs = any(d.is_dir() and d.name.startswith("run_") for d in folder.iterdir())
+            if has_runs:
+                strategies.append(folder.name)
+    return strategies
+
+
 def format_run_name(name):
     # e.g. run_20240413_131235 -> 2024-04-13 13:12:35
     try:
@@ -75,7 +89,7 @@ def format_run_name(name):
         date_str = f"{parts[1][:4]}-{parts[1][4:6]}-{parts[1][6:]}"
         time_str = f"{parts[2][:2]}:{parts[2][2:4]}:{parts[2][4:]}"
         return f"{date_str} {time_str}"
-    except:
+    except Exception:
         return name
 
 
@@ -83,8 +97,12 @@ def format_run_name(name):
 with st.sidebar:
     st.header("Controls & Filters")
 
-    # 1. Strategy & Run Selector
-    selected_r_strat = st.selectbox("Retrieval Strategy", ["vector", "hybrid", "rerank"])
+    # 1. Strategy & Run Selector (dynamically discovered from disk)
+    available_strategies = get_available_strategies()
+    if not available_strategies:
+        st.error("No evaluation data found. Run a benchmark first.")
+        st.stop()
+    selected_r_strat = st.selectbox("Retrieval Strategy", available_strategies)
     available_runs = get_runs(selected_r_strat)
 
     selected_run = None
@@ -104,7 +122,8 @@ with st.sidebar:
             ["fixed", "sliding", "structure", "semantic"],
             default=["fixed", "sliding", "structure", "semantic"],
         )
-        r_strats = st.multiselect("Retrieval Strategies", ["vector"], default=["vector"])
+        all_r_opts = ["vector", "hybrid", "hybrid_rerank", "vector_rewrite", "hybrid_rewrite", "hybrid_rerank_rewrite"]
+        r_strats = st.multiselect("Retrieval Strategies", all_r_opts, default=["vector"])
 
         dry_run = st.checkbox("Dry Run (Estimate costs only)", value=False)
         pwd = st.text_input("Admin Password", type="password")
@@ -175,13 +194,18 @@ except FileNotFoundError:
     st.warning("Run files are still generating. Please click 'Refresh Dashboard' in the sidebar.")
     st.stop()
 
-# Convert to DataFrame
+# Convert to DataFrame — filter to only show data for the selected retrieval strategy
 rows = []
 for strategy, items in results_data.items():
     if not items:
         continue
     for item in items:
-        rows.append({"strategy": strategy, **item})
+        row_data = {"strategy": strategy, **item}
+        # Filter: only include rows belonging to the selected retrieval strategy
+        row_r_strat = item.get("retrieval_strategy", "")
+        # Accept if retrieval_strategy matches, or if the strategy key ends with the selected strategy
+        if row_r_strat == selected_r_strat or strategy.endswith(f"_{selected_r_strat}"):
+            rows.append(row_data)
 
 if not rows:
     st.warning("No completed results yet for this run index.")
@@ -215,7 +239,9 @@ for strat, metrics in sd.items():
             "Hallucination": f"{metrics.get('hallucination_rate', 0) * 100:.1f}%",
             "Cost (¢ per 1K Qs)": f"{metrics.get('cost_cents_per_1k_queries', 0):.1f}¢",
             "Efficiency Index": f"{metrics.get('efficiency_index', 0):.2f}",
+            "Latency p50": f"{metrics.get('p50_latency_ms', 0):.0f}ms",
             "Latency p95": f"{metrics.get('p95_latency_ms', 0):.0f}ms",
+            "Latency p99": f"{metrics.get('p99_latency_ms', 0):.0f}ms",
         }
     )
 

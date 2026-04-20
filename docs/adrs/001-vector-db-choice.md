@@ -1,20 +1,91 @@
-# ADR 001: Vector Database Selection
+# ADR-001: Vector Database — Qdrant
 
-## Status
-Accepted
+**Status:** Accepted  
+**Date:** 2026-04-13  
+**Author:** Manvendra Pratap Rao
+
+---
 
 ## Context
-As part of the DeepVault Enterprise Retrieval-Augmented Generation (RAG) platform, we require a system capable of storing high-dimensional embeddings efficiently and performing rapid K-Nearest Neighbor (K-NN) and Approximate Nearest Neighbor (ANN) searches. During Phase 1 engineering, we evaluated multiple database providers including FAISS, ChromaDB, Pinecone, and Qdrant. 
+
+DeepVault requires a vector database to store and query 384-dimensional embeddings produced by `BAAI/bge-small-en-v1.5`. The system must support:
+
+- Sub-100ms nearest-neighbour search over tens of thousands of chunks.
+- Metadata filtering (e.g., filter by `chunking_strategy`, `document_id`).
+- Multiple isolated collections, one per chunking strategy, for side-by-side benchmarking.
+- Local development mode (no Docker or external service required).
+- A well-maintained Python client with async support.
+
+The three primary candidates evaluated were **Qdrant**, **FAISS**, and **ChromaDB**.
+
+---
 
 ## Decision
-We elected to natively integrate **Qdrant** as the primary vector database utilizing its "Local Path" storage engine for initial iterations, with seamless scalability to its Docker/Server engines.
 
-## Rationale
-1. **Zero External Dependencies**: By utilizing `qdrant-client`'s local storage engine, the system utilizes SQLite mapping under the hood. This elegantly avoids demanding users to establish complex container architectures just to execute minimal viable prototypes.
-2. **Deterministic Scalability**: Qdrant natively offers zero-friction migration. Our code base transitions automatically from `path="qdrant_storage"` to `url="http://localhost:6333"` simply by toggling an `.env` variable without requiring refactored indexing logic.
-3. **Rust-Based Performance**: Compared to Python-native clients like ChromaDB or non-persistent arrays like FAISS, Qdrant’s core Rust engine demonstrates categorically superior benchmark throughput natively, which is critical for scaling to 5,000+ synthesized datasets.
+**Use Qdrant** as the vector store for all phases of DeepVault.
+
+---
+
+## Evaluation
+
+### Qdrant
+
+| Criterion | Assessment |
+|-----------|------------|
+| Metadata filtering | ✅ First-class. Payload-based filters with `must`, `should` conditions. |
+| Multiple collections | ✅ Native concept. Each chunking strategy gets its own collection. |
+| Local mode | ✅ `AsyncQdrantClient(path="qdrant_storage")` — zero setup. |
+| Docker mode | ✅ Official Docker image, used in `docker-compose.yml`. |
+| Async Python client | ✅ `qdrant-client[async]` is the default. |
+| HNSW algorithm | ✅ Production-grade approximate nearest neighbours. |
+| Scroll/pagination | ✅ Required for BM25 index bootstrap (Phase 2). |
+| REST + gRPC | ✅ Both supported; REST used for compatibility. |
+
+### FAISS (Facebook AI Similarity Search)
+
+| Criterion | Assessment |
+|-----------|------------|
+| Metadata filtering | ❌ Not supported natively. Requires a separate metadata store and post-filtering. |
+| Multiple collections | ⚠️ Requires separate index files per collection — no unified client. |
+| Local mode | ✅ Pure in-process, no server. |
+| Async Python client | ❌ Synchronous only. Requires `asyncio.to_thread` for every call. |
+| Production use | ⚠️ Research-grade. Requires custom index serialization. |
+
+**Rejected:** Metadata filtering is essential for retrieving strategy-specific chunks. FAISS's lack of native filtering would require maintaining a parallel SQLite index, increasing complexity.
+
+### ChromaDB
+
+| Criterion | Assessment |
+|-----------|------------|
+| Metadata filtering | ✅ Supported via `where` clauses. |
+| Multiple collections | ✅ Supported. |
+| Local mode | ✅ File-based persistence. |
+| Async Python client | ⚠️ Limited async support in early stable versions. |
+| Production readiness | ⚠️ Primarily designed for prototyping. The server mode is less battle-tested than Qdrant. |
+| Scroll/pagination | ⚠️ Scroll API less mature; BM25 bootstrap (Phase 2) would be slower. |
+
+**Rejected:** ChromaDB is excellent for rapid prototyping but lacks the production robustness and async-first client that Qdrant provides. Qdrant's scroll API was specifically needed for the BM25 retriever's index bootstrapping in Phase 2.
+
+---
 
 ## Consequences
-- **Positive**: Developers can locally clone and boot the enterprise framework without container orchestration overheads (`docker-compose`).
-- **Positive**: We enforce a strong isolation gap between text storage (SQLite layer) and vector mapping.
-- **Negative (Mitigated)**: Running Qdrant over the local path induces strict file-locks inside Python. We circumvented this by strategically configuring `seed_data.py` to target the active dynamic Docker HTTP endpoints rather than locking the localized disks simultaneously.
+
+**Positive:**
+- Metadata filtering enables per-strategy queries without maintaining separate indices.
+- Scroll API allows the BM25 retriever to load all chunks into memory for indexing.
+- Local and Docker modes allow development without external services.
+- The `AsyncQdrantClient` integrates naturally with FastAPI's async event loop.
+
+**Negative:**
+- Adds a runtime dependency (Docker in production, local storage in development).
+- Vector dimensions are fixed at collection creation — re-indexing required if the embedder changes.
+- Not as lightweight as FAISS for pure similarity search without filtering.
+
+---
+
+## Implementation Notes
+
+- Collection naming convention: `deepvault_{strategy}` (e.g., `deepvault_fixed`, `deepvault_sliding`).
+- Collections are created with JIT initialization in `QdrantVectorStore.initialize()`.
+- The Qdrant client is a singleton, managed by the `app/dependencies.py` module.
+- Local storage path: `qdrant_storage/` in the project root (`.gitignore`d).

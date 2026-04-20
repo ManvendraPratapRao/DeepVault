@@ -1,12 +1,12 @@
 from fastapi.testclient import TestClient
 
-from app.api.dependencies import get_api_key
+import app.api.v1.routes.query as query_route
 from app.main import app
 
 client = TestClient(app)
 
-# Override the API key dependency for testing so we don't get 403s
-app.dependency_overrides[get_api_key] = lambda: "test_key"
+# Override the API key dependency for testing — points to the local def in query.py
+app.dependency_overrides[query_route.get_api_key] = lambda: "test_key"
 
 
 def test_health_check_route():
@@ -16,14 +16,22 @@ def test_health_check_route():
 
 
 def test_query_route_validation_error():
-    # Missing query_text
-    response = client.post("/api/v1/query", json={"top_k": 5})
+    # Missing query_text — should return 422 Unprocessable Entity
+    response = client.post(
+        "/api/v1/query",
+        json={"top_k": 5},
+        headers={"X-API-KEY": "deepvault_secret_key"},
+    )
     assert response.status_code == 422
 
 
 def test_ingest_text_validation_error():
-    # Missing source
-    response = client.post("/api/v1/documents/text", json={"content": "Hello"})
+    # Missing source — should return 422 Unprocessable Entity
+    response = client.post(
+        "/api/v1/documents/text",
+        json={"content": "Hello"},
+        headers={"X-API-KEY": "deepvault_secret_key"},
+    )
     assert response.status_code == 422
 
 

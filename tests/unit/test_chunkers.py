@@ -61,6 +61,8 @@ def test_chunk_metadata_propagated(sample_document):
 
 
 def test_semantic_chunker(mock_embedder):
+    import numpy as np
+
     doc = Document(
         id="test-doc",
         content="Topic one. Still topic one. Topic two now.",
@@ -68,10 +70,11 @@ def test_semantic_chunker(mock_embedder):
         hash="hash1",
     )
     # Configure the inner model mock used by SemanticChunker
+    # Must return an actual numpy array — the chunker uses np.linalg.norm/np.sum on it
     mock_embedder.model = MagicMock()
-    mock_embedder.model.encode.return_value = [[0.1] * 384, [0.1] * 384, [0.1] * 384]
+    mock_embedder.model.encode.return_value = np.array([[0.1] * 384, [0.1] * 384, [0.1] * 384])
 
-    # The mock embedder returns [0.1]*384 for everything, so similarity is always 1.0 (above threshold)
+    # All embeddings are identical → similarity always 1.0 (above threshold)
     # Thus, it should group everything into a single chunk.
     chunker = SemanticChunker(embedder=mock_embedder, similarity_threshold=0.9, min_chunk_size=10)
     chunks = chunker.chunk(doc)
@@ -108,11 +111,13 @@ def test_sliding_chunker_no_sentence_breaks():
 
 
 def test_semantic_chunker_unicode_heavy(mock_embedder):
+    import numpy as np
+
     text = "Hello 世界. This is a 測試. 🌟 Emoticons help 🚀. Done!"
     doc = Document(id="uni", content=text, metadata=DocumentMetadata(source="test"), hash="hash")
 
     mock_embedder.model = MagicMock()
-    mock_embedder.model.encode.return_value = [[1.0] * 384 for _ in range(4)]
+    mock_embedder.model.encode.return_value = np.array([[1.0] * 384 for _ in range(4)])
 
     chunker = SemanticChunker(embedder=mock_embedder, similarity_threshold=0.9, min_chunk_size=5)
     chunks = chunker.chunk(doc)

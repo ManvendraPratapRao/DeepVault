@@ -76,6 +76,7 @@ async def query_strategy(
                 "query_text": text,
                 "chunking_strategy": chunking_strategy,
                 "retrieval_strategy": retrieval_strategy,
+                "use_query_rewriting": st.session_state.get("use_rewriter", False),
                 "top_k": top_k,
             }
             response = await client.post(f"{api_url}/api/v1/query", json=payload, headers=headers)
@@ -93,26 +94,32 @@ with st.sidebar:
     API_URL = st.text_input("API Endpoint", value="http://localhost:8000")
     API_KEY = st.text_input("API Token", value="deepvault_secret_key", type="password")
 
-    COL1_CHUNK_STRAT = st.selectbox(
+    COL1_CHUNK_STRAT: str = st.selectbox(
         "Panel A - Chunking Array", options=["fixed", "sliding", "structure", "semantic"], index=0
-    )
-    COL1_RETRIEVAL_STRAT = st.selectbox(
-        "Panel A - Retrieval Algorithm", options=["vector", "hybrid", "rerank"], index=0
-    )
+    ) or "fixed"
+    COL1_RETRIEVAL_STRAT: str = st.selectbox(
+        "Panel A - Retrieval Algorithm", options=["vector", "hybrid", "hybrid_rerank"], index=0
+    ) or "vector"
 
     st.divider()
 
-    COL2_CHUNK_STRAT = st.selectbox(
+    COL2_CHUNK_STRAT: str = st.selectbox(
         "Panel B - Chunking Array", options=["fixed", "sliding", "structure", "semantic"], index=3
-    )
-    COL2_RETRIEVAL_STRAT = st.selectbox(
-        "Panel B - Retrieval Algorithm", options=["vector", "hybrid", "rerank"], index=0
-    )
+    ) or "sliding"
+    COL2_RETRIEVAL_STRAT: str = st.selectbox(
+        "Panel B - Retrieval Algorithm", options=["vector", "hybrid", "hybrid_rerank"], index=0
+    ) or "vector"
 
     st.divider()
 
     TOP_K = st.slider("Retrieval Depth (Top-K)", min_value=1, max_value=10, value=5)
     TEMPERATURE = st.slider("LLM Temperature", min_value=0.0, max_value=1.0, value=0.0, step=0.1)
+
+    st.session_state.use_rewriter = st.checkbox(
+        "✨ Enable Query Rewriting",
+        value=False,
+        help="Expands vague queries for better retrieval. Adds ~500ms latency.",
+    )
 
     if st.button("Clear Arena History"):
         st.session_state.messages = []

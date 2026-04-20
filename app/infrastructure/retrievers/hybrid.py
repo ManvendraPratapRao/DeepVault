@@ -10,7 +10,14 @@ class HybridRetriever(BaseRetriever):
     Combines Vector Semantic Search and BM25 Keyword Search using Reciprocal Rank Fusion (RRF).
     """
 
-    def __init__(self, vector_retriever: BaseRetriever, bm25_retriever: BaseRetriever, rrf_k: int = 60, vector_weight: float = 0.5, bm25_weight: float = 0.5):
+    def __init__(
+        self,
+        vector_retriever: BaseRetriever,
+        bm25_retriever: BaseRetriever,
+        rrf_k: int = 60,
+        vector_weight: float = 0.5,
+        bm25_weight: float = 0.5,
+    ):
         self.vector_retriever = vector_retriever
         self.bm25_retriever = bm25_retriever
         self.rrf_k = rrf_k
@@ -20,21 +27,17 @@ class HybridRetriever(BaseRetriever):
     async def retrieve(
         self, query: str, top_k: int = 5, filters: dict | None = None, collection_name: str | None = None
     ) -> list[Chunk]:
-        
+
         # We fetch more chunks to ensure a good intersection
         fetch_k = top_k * 4
 
         try:
-            vector_task = asyncio.create_task(
-                self.vector_retriever.retrieve(query, fetch_k, filters, collection_name)
-            )
-            bm25_task = asyncio.create_task(
-                self.bm25_retriever.retrieve(query, fetch_k, filters, collection_name)
-            )
+            vector_task = asyncio.create_task(self.vector_retriever.retrieve(query, fetch_k, filters, collection_name))
+            bm25_task = asyncio.create_task(self.bm25_retriever.retrieve(query, fetch_k, filters, collection_name))
 
             # Parallel independent retrieval
             vector_results, bm25_results = await asyncio.gather(vector_task, bm25_task)
-            
+
             logger.info(f"Hybrid Retrieval: Found {len(vector_results)} Vector hits and {len(bm25_results)} BM25 hits.")
 
         except Exception as e:
@@ -51,7 +54,7 @@ class HybridRetriever(BaseRetriever):
                 chunk_map[chunk.id] = chunk
             if chunk.id not in fused_scores:
                 fused_scores[chunk.id] = 0.0
-            
+
             # RRF Formula
             fused_scores[chunk.id] += self.vector_weight * (1.0 / (self.rrf_k + rank + 1))
 
@@ -61,7 +64,7 @@ class HybridRetriever(BaseRetriever):
                 chunk_map[chunk.id] = chunk
             if chunk.id not in fused_scores:
                 fused_scores[chunk.id] = 0.0
-            
+
             fused_scores[chunk.id] += self.bm25_weight * (1.0 / (self.rrf_k + rank + 1))
 
         # Sort by the Fused Score descending

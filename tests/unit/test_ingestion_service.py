@@ -11,6 +11,7 @@ from app.services.ingestion import IngestionService
 def mock_chunker(sample_chunks):
     chunker = MagicMock()
     chunker.chunk.return_value = sample_chunks
+    chunker.strategy_name = "fixed"
     return chunker
 
 
@@ -26,13 +27,15 @@ def ingestion_service(mock_chunker, mock_embedder, mock_doc_store, mock_vector_s
 
 @pytest.mark.asyncio
 async def test_ingest_text_success(ingestion_service, mock_doc_store, mock_vector_store, mock_embedder):
-    mock_doc_store.get_document.return_value = None  # Ensure it's not a duplicate
+    # Ensure no existing doc (no duplicate)
+    mock_doc_store.get_document_by_hash.return_value = None
 
-    doc = await ingestion_service.ingest_text(content="Test content", source="test.txt", author="Unit Test")
+    doc, chunks_created = await ingestion_service.ingest_text(content="Test content", source="test.txt", author="Unit Test")
 
     assert doc is not None
     assert doc.content == "Test content"
     assert doc.metadata.source == "test.txt"
+    assert chunks_created > 0
 
     # Check that it stored the doc and the chunks
     mock_doc_store.upsert_document.assert_awaited_once()
@@ -42,8 +45,8 @@ async def test_ingest_text_success(ingestion_service, mock_doc_store, mock_vecto
 
 @pytest.mark.asyncio
 async def test_ingest_duplicate_raises(ingestion_service, mock_doc_store):
-    # Setup mock to return an existing document
-    mock_doc_store.get_document.return_value = Document(
+    # Setup mock to return an existing document (duplicate hash)
+    mock_doc_store.get_document_by_hash.return_value = Document(
         id="existing-id", content="test", metadata=DocumentMetadata(source="test"), hash="testhash"
     )
 
@@ -53,12 +56,12 @@ async def test_ingest_duplicate_raises(ingestion_service, mock_doc_store):
 
 @pytest.mark.asyncio
 async def test_ingest_file_md(ingestion_service, tmp_path, mock_doc_store):
-    mock_doc_store.get_document.return_value = None
+    mock_doc_store.get_document_by_hash.return_value = None
 
     md_file = tmp_path / "test.md"
     md_file.write_text("Markdown content")
 
-    doc = await ingestion_service.ingest_file(md_file)
+    doc, _ = await ingestion_service.ingest_file(md_file)
     assert doc.content == "Markdown content"
     assert doc.metadata.source == "test.md"
 
@@ -74,7 +77,7 @@ async def test_ingest_file_unsupported_type(ingestion_service, tmp_path):
 
 @pytest.mark.asyncio
 async def test_ingest_directory(ingestion_service, tmp_path, mock_doc_store):
-    mock_doc_store.get_document.return_value = None
+    mock_doc_store.get_document_by_hash.return_value = None
 
     (tmp_path / "file1.md").write_text("content 1")
     (tmp_path / "file2.txt").write_text("content 2")
@@ -90,14 +93,9 @@ async def test_ingest_directory(ingestion_service, tmp_path, mock_doc_store):
 
 @pytest.mark.asyncio
 async def test_ingest_storage_failure_aborts(ingestion_service, mock_doc_store, mock_vector_store):
-    mock_doc_store.get_document.return_value = None
+    mock_doc_store.get_document_by_hash.return_value = None
+    # Simulate Qdrant being unreachable — service wraps this in IngestionError
     mock_vector_store.upsert_chunks.side_effect = Exception("Qdrant un-reachable")
 
-    with pytest.raises(Exception, match="Qdrant un-reachable"):
+    with pytest.raises(IngestionError, match="Vector Storage Fault"):
         await ingestion_service.ingest_text("Test", "test.md")
-
-    # SQLite should not commit metadata if vector store fails. Wait, in ingest_text,
-    # vector_store is called AFTER doc_store.upsert_document.
-    # If vector store fails, does it clean up?
-    # The current code doc states "if metadata storage fails, vectors are cleaned up".
-    # The test at least asserts it crashes correctly.

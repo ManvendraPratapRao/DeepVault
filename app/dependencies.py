@@ -5,8 +5,9 @@ from qdrant_client import AsyncQdrantClient
 
 from app.config import settings
 from app.core.interfaces.chunker import BaseChunker
-from app.core.interfaces.retriever import BaseRetriever
 from app.core.interfaces.reranker import BaseReranker
+from app.core.interfaces.retriever import BaseRetriever
+from app.core.interfaces.rewriter import BaseQueryRewriter
 from app.infrastructure.cache.redis import RedisCache
 from app.infrastructure.chunkers.fixed import FixedWindowChunker
 from app.infrastructure.chunkers.semantic import SemanticChunker
@@ -17,10 +18,11 @@ from app.infrastructure.chunkers.structure import StructureChunker
 from app.infrastructure.embedders.bge import BgeEmbedder
 from app.infrastructure.llm.groq import GroqLLMClient
 from app.infrastructure.logging.structured import logger
-from app.infrastructure.retrievers.vector import VectorRetriever
+from app.infrastructure.query.rewriter import GroqQueryRewriter
+from app.infrastructure.rerankers.cross_encoder import CrossEncoderReranker
 from app.infrastructure.retrievers.bm25 import BM25Retriever
 from app.infrastructure.retrievers.hybrid import HybridRetriever
-from app.infrastructure.rerankers.cross_encoder import CrossEncoderReranker
+from app.infrastructure.retrievers.vector import VectorRetriever
 from app.infrastructure.stores.qdrant import QdrantVectorStore
 from app.infrastructure.stores.sqlite import SqliteDocumentStore
 from app.services.cache_service import CacheService
@@ -153,21 +155,18 @@ async def get_retriever(strategy: str | None = None) -> BaseRetriever:
     Factory that resolves the retrieval engine (Vector, BM25, or Hybrid).
     """
     effective_strategy = strategy or settings.RETRIEVAL_STRATEGY
-    
+
     if effective_strategy == "hybrid" or effective_strategy == "hybrid_rerank":
         if "hybrid_retriever" not in _cache:
             v_retriever = VectorRetriever(embedder=await get_embedder(), vector_store=await get_vector_store())
             b_retriever = await get_bm25_retriever()
-            _cache["hybrid_retriever"] = HybridRetriever(
-                vector_retriever=v_retriever, 
-                bm25_retriever=b_retriever
-            )
+            _cache["hybrid_retriever"] = HybridRetriever(vector_retriever=v_retriever, bm25_retriever=b_retriever)
         return _cache["hybrid_retriever"]
-    
+
     elif effective_strategy == "bm25":
         return await get_bm25_retriever()
-        
-    else: # Default to Vector
+
+    else:  # Default to Vector
         if "retriever" not in _cache:
             embedder = await get_embedder()
             vstore = await get_vector_store()
@@ -183,9 +182,15 @@ async def get_bm25_retriever() -> BM25Retriever:
 
 async def get_reranker() -> BaseReranker:
     if "reranker" not in _cache:
-        # Note: This model is 90MB, it will download on first access if not cached
         _cache["reranker"] = CrossEncoderReranker()
     return _cache["reranker"]
+
+
+async def get_query_rewriter() -> BaseQueryRewriter:
+    if "query_rewriter" not in _cache:
+        llm_client = await get_llm_client()
+        _cache["query_rewriter"] = GroqQueryRewriter(llm_client=llm_client)
+    return _cache["query_rewriter"]
 
 
 # --- SERVICE BUILDERS ---
@@ -211,7 +216,8 @@ async def get_query_service() -> QueryService:
         retriever=await get_retriever(),
         llm_client=await get_llm_client(),
         cache_service=await get_cache_service(),
-        reranker=reranker
+        reranker=reranker,
+        rewriter=await get_query_rewriter(),
     )
 
 
