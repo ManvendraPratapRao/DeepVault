@@ -1,18 +1,22 @@
 # DeepVault — Enterprise RAG Platform
 
-DeepVault is a production-grade Retrieval-Augmented Generation (RAG) system built from scratch using interface-driven design. It ingests enterprise documents (Markdown, text, PDF), chunks them using 4 configurable strategies, stores embeddings in Qdrant, and generates grounded answers using Groq's Llama-3.1.
+DeepVault is a production-grade Retrieval-Augmented Generation (RAG) system built from scratch using interface-driven design. It ingests enterprise documents (Markdown, text, PDF), chunks them using **4 configurable strategies**, retrieves context via **6 retrieval pipelines** (including BM25 hybrid + cross-encoder reranking), and generates grounded answers using Groq's Llama-3.3-70b.
 
-The system includes a built-in evaluation pipeline that measures retrieval precision, answer faithfulness, and cost efficiency — enabling data-driven decisions about chunking and retrieval strategies.
+The system includes a rigorous evaluation pipeline that measures retrieval precision, answer faithfulness, hallucination rate, and cost efficiency using an LLM-as-judge approach — enabling fully data-driven decisions about which retrieval configuration to deploy.
 
 ## Key Features
 
 - **4 Chunking Strategies** — Fixed window, sliding window, structure-based (Markdown headings), and semantic (embedding similarity). Each strategy creates an isolated Qdrant collection for side-by-side comparison.
-- **Async Ingestion Pipeline** — Background document processing with job tracking and duplicate detection via content hashing.
-- **Redis Caching** — Semantic query cache (MD5 → cached response) and embedding cache to avoid recomputation.
-- **Evaluation Engine** — Automated benchmarking with LLM-as-judge scoring (faithfulness + relevance), retrieval precision@k, latency percentiles, and cost tracking.
+- **6 Retrieval Pipelines** — Vector-only, BM25-only, Hybrid (BM25 + Vector via Reciprocal Rank Fusion), Hybrid + Cross-Encoder Reranking, and query-rewritten variants of each.
+- **Intelligent Query Router** — Rule-based classifier routes queries to the optimal retrieval strategy: factual → hybrid, semantic → vector, comparison/complex → hybrid+rerank. Zero latency overhead.
+- **Query Decomposer** — LLM breaks complex multi-part questions into 2–4 focused sub-queries, retrieves in parallel, deduplicates. Activated automatically for `complex` query type.
+- **SSE Streaming** — Token-by-token response streaming via Server-Sent Events (`POST /api/v1/stream`). Chat UI with blinking cursor animation.
+- **Prometheus + Grafana Observability** — 7 instrumented metrics (HTTP latency, RAG latency, LLM token cost, cache hit rate, ingestion throughput). 3 provisioned dashboards.
+- **Redis Caching** — Semantic query cache and embedding cache. Feature-flag controlled.
+- **Evaluation Engine** — 720-query benchmark across all 24 strategy combinations (6 retrieval × 4 chunking). LLM-as-judge with faithfulness, hallucination rate, Hit Rate, CP@1, P@K, and cost efficiency metrics.
 - **Rate Limiting** — Per-API-key sliding window rate limiter backed by Redis.
 - **Structured JSON Logging** — Every request gets a correlation ID; all logs output as structured JSON for observability.
-- **Streamlit Dashboard** — Interactive Retriever Arena for live strategy comparison and Metrics Laboratory for benchmark analysis.
+- **Streamlit Dashboard** — Retriever Arena (live strategy comparison), Metrics Laboratory (benchmark analysis), and Streaming Chat.
 
 ## Tech Stack
 
@@ -33,12 +37,26 @@ The system includes a built-in evaluation pipeline that measures retrieval preci
 graph TD
     subgraph API Layer
         FE[Streamlit UI] --> API[FastAPI /api/v1]
+        FE --> STREAM[POST /api/v1/stream SSE]
     end
 
     subgraph Service Layer
         API --> IS[Ingestion Service]
         API --> QS[Query Service]
         API --> DS[Document Service]
+        STREAM --> QS
+    end
+
+    subgraph Retrieval Pipeline
+        QS --> RW[QueryRewriter optional]
+        RW --> RT{Retrieval Strategy}
+        RT -->|vector| VR[VectorRetriever]
+        RT -->|hybrid| HR[HybridRetriever]
+        RT -->|hybrid_rerank| HR
+        HR --> VR
+        HR --> BM[BM25Retriever]
+        HR --> RRF[RRF Fusion]
+        RRF --> CE[CrossEncoderReranker]
     end
 
     subgraph Core Abstractions
@@ -46,7 +64,6 @@ graph TD
         IS -.-> EM[BaseEmbedder]
         IS -.-> VS[BaseVectorStore]
         IS -.-> MS[BaseDocumentStore]
-        QS -.-> RT[BaseRetriever]
         QS -.-> LLM[BaseLLMClient]
         QS -.-> CS[CacheService]
     end
@@ -56,12 +73,16 @@ graph TD
         CH --> C2[SlidingWindowChunker]
         CH --> C3[StructureChunker]
         CH --> C4[SemanticChunker]
-        RT --> VR[VectorRetriever]
         LLM --> GR[GroqLLMClient]
         EM --> BGE[BgeEmbedder]
         VS --> QD[(Qdrant)]
         MS --> SQL[(SQLite)]
         CS --> RD[(Redis)]
+    end
+
+    subgraph Observability
+        API --> PROM[/metrics Prometheus]
+        PROM --> GRAF[Grafana :3000]
     end
 ```
 
@@ -214,13 +235,16 @@ deepvault/
 | [007](docs/adrs/007-rrf-fusion-strategy.md) | Reciprocal Rank Fusion over weighted scoring | Score-scale independent, robust to outliers |
 | [008](docs/adrs/008-cross-encoder-reranker.md) | ms-marco-MiniLM-L-6-v2 cross-encoder | Best quality/speed tradeoff on CPU, Apache 2.0 license |
 
+| [009](docs/adrs/009-query-routing-strategy.md) | Rule-based classifier over LLM-based | Zero latency overhead, 90%+ accuracy on RAG query patterns, fully explainable |
+| [010](docs/adrs/010-query-decomposition.md) | LLM decomposition with parallel retrieval | Complex queries need per-aspect retrieval; parallel asyncio.gather keeps latency manageable |
+
 ## Roadmap
 
-- [x] **Phase 1** — Core RAG pipeline, 4 chunking strategies, Redis caching, evaluation baseline
-- [x] **Phase 2** — Hybrid retrieval (BM25 + vector RRF), cross-encoder reranking, query rewriting, Phase 2 benchmark
-- [ ] **Phase 3** — Query router (factual/semantic/comparison classification), query decomposition
-- [ ] **Phase 4** — Production hardening (JWT auth, Prometheus/Grafana observability, SSE streaming, PostgreSQL, deployment)
-- [ ] **Phase 5** — Autonomous optimization (A/B testing, feedback loops, LLM cost routing)
+- [x] **Phase 1** — Core RAG pipeline, 4 chunking strategies, Redis caching, evaluation baseline (`v1.0.0`)
+- [x] **Phase 2** — Hybrid retrieval (BM25 + vector RRF), cross-encoder reranking, query rewriting, Phase 2 benchmark (`v2.0.0`)
+- [x] **Phase 3** — Query router (classifier + intelligent routing + decomposition), `retrieval_strategy: auto` API, ADR-009/010 (`v3.0.0`)
+- [x] **Phase 4** — Prometheus/Grafana observability (3 dashboards), SSE streaming, streaming Chat UI, detailed health checks (`v2.1.0`)
+- [ ] **Phase 5** — LLM cost router, user feedback system, A/B testing framework
 
 ## License
 

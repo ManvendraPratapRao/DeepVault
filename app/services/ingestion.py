@@ -3,6 +3,7 @@ import hashlib
 import time
 from pathlib import Path
 
+from app.api.middleware.metrics import record_ingestion
 from app.core.exceptions import DuplicateDocumentError, IngestionError
 from app.core.interfaces.chunker import BaseChunker
 from app.core.interfaces.document_store import BaseDocumentStore
@@ -48,6 +49,7 @@ class IngestionService:
         # 2. Check for duplicates (Production Safety)
         existing_doc = await self.doc_store.get_document_by_hash(doc_hash)
         if existing_doc:
+            record_ingestion(strategy, status="duplicate")
             raise DuplicateDocumentError(f"Document with hash {doc_hash} already exists.", detail={"source": source})
 
         # 3. Build Document Object
@@ -86,6 +88,7 @@ class IngestionService:
             raise IngestionError(f"Vector Storage Fault: {str(e)}") from e
 
         latency_ms = (time.perf_counter() - start_time) * 1000
+        record_ingestion(strategy, status="success", chunks_created=len(chunks))
         logger.info(
             f"Successfully ingested document: {source}",
             extra={

@@ -80,11 +80,10 @@ async def seed_single(data_dirs: list[str], chunker: str, dry_run: bool):
         print("[ERROR] No valid directories found. Aborting.")
         return
 
-    # Apply per-strategy chunker params if known
-    if chunker in STRATEGY_CONFIG:
-        cfg = STRATEGY_CONFIG[chunker]
-        settings.CHUNKER_SIZE = cfg["size"]
-        settings.CHUNKER_OVERLAP = cfg["overlap"]
+    # Resolve per-strategy chunker params WITHOUT mutating global settings
+    cfg = STRATEGY_CONFIG.get(chunker, {})
+    chunk_size = cfg.get("size", settings.CHUNKER_SIZE)
+    chunk_overlap = cfg.get("overlap", settings.CHUNKER_OVERLAP)
 
     files = [f for d in valid_dirs for ext in settings.SUPPORTED_FILE_EXTENSIONS for f in d.rglob(f"*{ext}")]
 
@@ -93,7 +92,7 @@ async def seed_single(data_dirs: list[str], chunker: str, dry_run: bool):
 
     print(f"\n[CONFIG] Strategy: {chunker.upper()}")
     print(f"[CONFIG] Dirs:     {[p.resolve().name for p in valid_dirs]}")
-    print(f"[CONFIG] Size/Overlap: {settings.CHUNKER_SIZE}/{settings.CHUNKER_OVERLAP}")
+    print(f"[CONFIG] Size/Overlap: {chunk_size}/{chunk_overlap}")
     print(f"[FOUND]  {len(files)} files  (PDFs: {pdf_count} | MD/TXT: {md_count})")
 
     if dry_run:

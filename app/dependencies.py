@@ -18,7 +18,10 @@ from app.infrastructure.chunkers.structure import StructureChunker
 from app.infrastructure.embedders.bge import BgeEmbedder
 from app.infrastructure.llm.groq import GroqLLMClient
 from app.infrastructure.logging.structured import logger
+from app.infrastructure.query.classifier import QueryClassifier
+from app.infrastructure.query.decomposer import QueryDecomposer
 from app.infrastructure.query.rewriter import GroqQueryRewriter
+from app.infrastructure.query.router import QueryRouter
 from app.infrastructure.rerankers.cross_encoder import CrossEncoderReranker
 from app.infrastructure.retrievers.bm25 import BM25Retriever
 from app.infrastructure.retrievers.hybrid import HybridRetriever
@@ -206,10 +209,23 @@ async def get_ingestion_service(strategy: str | None = None) -> IngestionService
     )
 
 
+async def get_query_router() -> QueryRouter:
+    if "query_router" not in _cache:
+        _cache["query_router"] = QueryRouter(classifier=QueryClassifier())
+    return _cache["query_router"]
+
+
+async def get_query_decomposer() -> QueryDecomposer:
+    if "query_decomposer" not in _cache:
+        llm_client = await get_llm_client()
+        _cache["query_decomposer"] = QueryDecomposer(llm_client=llm_client)
+    return _cache["query_decomposer"]
+
+
 async def get_query_service() -> QueryService:
     # Resolve reranker ONLY if the strategy demands it to save memory for vector-only users
     reranker = None
-    if settings.RETRIEVAL_STRATEGY == "hybrid_rerank":
+    if settings.RETRIEVAL_STRATEGY in ("hybrid_rerank", "auto"):
         reranker = await get_reranker()
 
     return QueryService(
@@ -218,6 +234,8 @@ async def get_query_service() -> QueryService:
         cache_service=await get_cache_service(),
         reranker=reranker,
         rewriter=await get_query_rewriter(),
+        router=await get_query_router(),
+        decomposer=await get_query_decomposer(),
     )
 
 

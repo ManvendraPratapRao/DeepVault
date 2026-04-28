@@ -1,9 +1,20 @@
-from unittest.mock import AsyncMock
+from contextlib import asynccontextmanager
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from app.core.models.document import Chunk, Document, DocumentMetadata
 from app.core.models.query import LLMResult, TokenUsage
+
+
+# ---------------------------------------------------------------------------
+# Global: suppress real infrastructure connections for all non-integration tests
+# ---------------------------------------------------------------------------
+
+@asynccontextmanager
+async def _null_lifespan(app):
+    """A no-op lifespan that skips all DB/Redis/Qdrant connections."""
+    yield
 
 
 @pytest.fixture

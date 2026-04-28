@@ -8,6 +8,9 @@ from app.core.interfaces.retriever import BaseRetriever
 from app.core.interfaces.rewriter import BaseQueryRewriter
 from app.core.models.query import QueryRequest, QueryResponse
 from app.infrastructure.logging.structured import logger
+from app.infrastructure.query.classifier import QueryClassifier
+from app.infrastructure.query.decomposer import QueryDecomposer
+from app.infrastructure.query.router import QueryRouter
 from app.prompts.v1 import RAG_SYSTEM_PROMPT, RAG_USER_TEMPLATE
 from app.services.cache_service import CacheService
 
@@ -25,12 +28,16 @@ class QueryService:
         cache_service: CacheService | None = None,
         reranker: BaseReranker | None = None,
         rewriter: BaseQueryRewriter | None = None,
+        router: QueryRouter | None = None,
+        decomposer: QueryDecomposer | None = None,
     ):
         self.retriever = retriever
         self.llm_client = llm_client
         self.cache_service = cache_service
         self.reranker = reranker
         self.rewriter = rewriter
+        self.router = router
+        self.decomposer = decomposer
 
     async def ask(self, request: QueryRequest, request_id: str = "internal") -> QueryResponse:
         """
@@ -66,10 +73,19 @@ class QueryService:
         collection_name = f"deepvault_{request.chunking_strategy}" if request.chunking_strategy else None
 
         # Guard against unimplemented retrieval strategies (unless vector or hybrid)
-        valid_strategies = {"vector", "hybrid", "hybrid_rerank"}
+        valid_strategies = {"vector", "hybrid", "hybrid_rerank", "auto"}
         strat = (request.retrieval_strategy or "vector").lower()
         if strat not in valid_strategies:
             raise NotImplementedError(f"Retrieval strategy '{strat}' is not yet implemented. Known: {valid_strategies}")
+
+        # --- Phase 3: Query Router ---
+        # If strategy is 'auto', classify the query and route to best strategy
+        query_type: str | None = None
+        if strat == "auto" and self.router:
+            query_type, strat = self.router.classify_and_route(search_query)
+            logger.info(f"Router: type={query_type!r} → strategy={strat!r}")
+        elif strat == "auto":
+            strat = "hybrid"  # Sensible default when router not wired
 
         collection_display = collection_name or "Default"
         logger.info(
@@ -79,6 +95,7 @@ class QueryService:
                 "extra_fields": {
                     "chunking_strategy": request.chunking_strategy,
                     "retrieval_strategy": strat,
+                    "query_type": query_type,
                     "collection": collection_name,
                 }
             },
@@ -87,9 +104,19 @@ class QueryService:
         # If we are reranking, we fetch more candidate chunks initially
         fetch_k = request.top_k * 4 if strat == "hybrid_rerank" else request.top_k
 
-        chunks = await self.retriever.retrieve(
-            query=search_query, top_k=fetch_k, filters=request.filters, collection_name=collection_name
-        )
+        # --- Phase 3: Query Decomposer ---
+        # For 'complex' queries, decompose into sub-queries and retrieve in parallel
+        if query_type == "complex" and self.decomposer:
+            chunks = await self.decomposer.decompose_and_retrieve(
+                query=search_query,
+                retriever=self.retriever,
+                top_k=fetch_k,
+                collection_name=collection_name,
+            )
+        else:
+            chunks = await self.retriever.retrieve(
+                query=search_query, top_k=fetch_k, filters=request.filters, collection_name=collection_name
+            )
 
         # 2. Handle empty retrieval (Production Safety)
         if not chunks:
