@@ -1,46 +1,48 @@
 import sys
-import time
 import traceback
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, Response
-from prometheus_client import make_asgi_app
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.api.middleware.logging import LoggingMiddleware
-from app.api.middleware.metrics import HTTP_REQUEST_DURATION, HTTP_REQUESTS_TOTAL
 from app.api.v1 import api_router
 from app.config import settings
 from app.dependencies import initialize_all, shutdown_all
 from app.infrastructure.logging.structured import logger
+from app.infrastructure.tracing import setup_tracing
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
-    # 1. Startup Logic: Initialize Databases and Models
+async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
+    """Application lifespan handler — runs startup and shutdown logic."""
     await initialize_all()
     logger.info(f"DeepVault API v{settings.VERSION} is ready.")
     yield
-    # 2. Shutdown Logic: Close connections
     await shutdown_all()
     logger.info("DeepVault API has shut down safely.")
 
 
-async def global_exception_handler(request: Request, exc: Exception):
+async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """
-    Standardized Error Normalizer.
-    Catches ALL unhandled exceptions and returns a clean JSON response.
+    Standardized last-resort error handler.
+
+    Catches ALL unhandled exceptions that escape the route handlers and
+    normalizes them into a clean JSON response with a correlation ID.
+    Also writes to stderr as a redundant signal for ops teams monitoring
+    process output directly (useful when the structured log pipeline fails).
     """
     request_id = getattr(request.state, "request_id", "unknown")
     error_trace = traceback.format_exc()
 
-    # 1. Standard Logger (Structured JSON)
     logger.error(
         f"CRITICAL: Unhandled {type(exc).__name__}: {str(exc)}",
         extra={"extra_fields": {"request_id": request_id, "path": request.url.path, "traceback": error_trace}},
     )
 
-    # 2. Emergency Backup: Bright Red Stderr (Senior Dev trick for ghost debugging)
+    # Emergency backup to stderr — useful when log aggregation is unavailable
     sys.stderr.write("\n" + "=" * 80 + "\n")
     sys.stderr.write(f"🔥 DEEPVAULT CRITICAL ERROR [{request_id}]\n")
     sys.stderr.write(f"Error Type: {type(exc).__name__}\n")
@@ -61,43 +63,52 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 def create_app() -> FastAPI:
+    """Factory function for the FastAPI application."""
     app = FastAPI(
         title="DeepVault Enterprise RAG",
-        description="High-performance autonomous research assistant powered by Groq.",
+        description=(
+            "Production-grade Retrieval-Augmented Generation platform. "
+            "Supports 4 chunking strategies, 6 retrieval pipelines, "
+            "intelligent query routing, and token-by-token SSE streaming."
+        ),
         version=settings.VERSION,
         lifespan=lifespan,
+        docs_url="/docs",
+        redoc_url="/redoc",
     )
 
-    # Add our Request ID & Performance Logging middleware
+    # ------------------------------------------------------------------
+    # OpenTelemetry & Phoenix Tracing
+    # ------------------------------------------------------------------
+    setup_tracing(app)
+
+    # ------------------------------------------------------------------
+    # CORS — must be added before other middleware so it fires first.
+    # Restricts cross-origin access to the configured origin allowlist.
+    # ------------------------------------------------------------------
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.CORS_ALLOWED_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "DELETE"],
+        allow_headers=["*"],
+    )
+
+    # ------------------------------------------------------------------
+    # Request ID injection + structured access logging
+    # ------------------------------------------------------------------
     app.add_middleware(LoggingMiddleware)
 
-    # Include the API router
+    # ------------------------------------------------------------------
+    # API routes (versioned under /api/v1)
+    # ------------------------------------------------------------------
     app.include_router(api_router, prefix="/api/v1")
 
-    # Mount Prometheus metrics ASGI sub-application (unauthenticated, internal)
-    metrics_app = make_asgi_app()
-    app.mount("/metrics", metrics_app)
 
-    # Lightweight HTTP metrics instrumentation via a plain route hook
-    # (Starlette middleware wraps ALL requests including /metrics itself,
-    # so we use an on-request hook here to avoid circular recording)
-    @app.middleware("http")
-    async def _prometheus_http_middleware(request: Request, call_next) -> Response:
-        path = request.url.path
-        method = request.method
-        start = time.perf_counter()
-        response = await call_next(request)
-        duration = time.perf_counter() - start
-        # Skip the /metrics path itself to avoid self-loop
-        if path != "/metrics":
-            HTTP_REQUESTS_TOTAL.labels(
-                method=method, path=path, status_code=response.status_code
-            ).inc()
-            HTTP_REQUEST_DURATION.labels(method=method, path=path).observe(duration)
-        return response
-
-    # Final Defense: Global Exception Handler
-    app.add_exception_handler(Exception, global_exception_handler)
+    # ------------------------------------------------------------------
+    # Global exception handler — last line of defense
+    # ------------------------------------------------------------------
+    app.add_exception_handler(Exception, global_exception_handler)  # type: ignore[arg-type]
 
     return app
 

@@ -21,12 +21,7 @@
   },
   {
     "question": "What additional monitoring and alerting mechanisms can be implemented to prevent a recurrence of the PostgreSQL database query timeout that contributed to the Project Chimera failure in January 2023?",
-    "answer": [
-      "Implement database query monitoring tools such as pg_stat_statements to track query performance and identify potential bottlenecks.",
-      "Configure PostgreSQL to log query execution times and adjust the query timeout settings to prevent prolonged query executions.",
-      "Implement a load balancer and autoscaling to distribute database queries across multiple instances and prevent overloading of a single instance.",
-      "Set up alerting mechanisms to notify the ML Ops team when query execution times exceed a certain threshold or when the database is under heavy load."
-    ],
+    "answer": "Implement database query monitoring tools such as pg_stat_statements to track query performance and identify potential bottlenecks. Configure PostgreSQL to log query execution times and adjust the query timeout settings to prevent prolonged query executions. Implement a load balancer and autoscaling to distribute database queries across multiple instances and prevent overloading of a single instance. Set up alerting mechanisms to notify the ML Ops team when query execution times exceed a certain threshold or when the database is under heavy load.",
     "source_document": "project_chimera_2"
   },
   {
@@ -271,10 +266,7 @@
   },
   {
     "question": "What happens when a task fails in Celery and we're using a Redis broker for message storage?",
-    "answer": [
-      "When a task fails in Celery, the task is retried based on the 'retry_policy' configuration. However, if the task fails persistently and the retry limit is exceeded, the task is marked as failed and stored in the Redis broker.",
-      "To handle task failures, we can configure Celery to store failed tasks in a separate queue or database, allowing us to process and log the failures separately from successful tasks."
-    ],
+    "answer": "When a task fails in Celery, the task is retried based on the 'retry_policy' configuration. However, if the task fails persistently and the retry limit is exceeded, the task is marked as failed and stored in the Redis broker. To handle task failures, we can configure Celery to store failed tasks in a separate queue or database, allowing us to process and log the failures separately from successful tasks.",
     "source_document": "project_sentinel_4"
   },
   {
@@ -354,7 +346,7 @@
   },
   {
     "question": "How do we handle key rotation in the Paillier scheme when using the FHEW library in Project DeepVault?",
-    "answer": "To handle key rotation in the Paillier scheme when using the FHEW library in Project DeepVault, we need to generate a new public key (g, N) and a new secret key (\u03bb) for each rotation. The new public key should be computed as g' = g^\u03bb mod N, and the new secret key should be computed as \u03bb' = \u03bb^2 mod N. We then need to update the encryption and decryption formulas to use the new public and secret keys. Additionally, we need to ensure that the new public key is properly distributed to all parties involved in the computation.",
+    "answer": "To handle key rotation in the Paillier scheme when using the FHEW library in Project DeepVault, we need to generate a new public key (g, N) and a new secret key (λ) for each rotation. The new public key should be computed as g' = g^λ mod N, and the new secret key should be computed as λ' = λ^2 mod N. We then need to update the encryption and decryption formulas to use the new public and secret keys. Additionally, we need to ensure that the new public key is properly distributed to all parties involved in the computation.",
     "source_document": "project_deepvault_3"
   },
   {
@@ -384,12 +376,7 @@
   },
   {
     "question": "What would be the correct endpoint and authentication flow to use when updating a model's name and description, assuming I have a valid JWT token for the current session?",
-    "answer": [
-      "To update a model's name and description, you would use the `/models/{model_id}` endpoint with a `PUT` request.",
-      "First, obtain a valid JWT token by sending a `POST` request to the `/login` endpoint with a JSON payload containing the username and password.",
-      "Then, include the JWT token in the `Authorization` header of the `PUT` request to update the model, using the model's ID as a URL parameter.",
-      "The request body should contain the updated model metadata, in JSON format."
-    ],
+    "answer": "To update a model's name and description, you would use the `/models/{model_id}` endpoint with a `PUT` request. First, obtain a valid JWT token by sending a `POST` request to the `/login` endpoint with a JSON payload containing the username and password. Then, include the JWT token in the `Authorization` header of the `PUT` request to update the model, using the model's ID as a URL parameter. The request body should contain the updated model metadata, in JSON format.",
     "source_document": "project_nexus_5"
   },
   {
@@ -494,10 +481,7 @@
   },
   {
     "question": "What specific PostgreSQL configuration changes were made to resolve the connection timeout issue in Project Chimera on 2023-11-10?",
-    "answer": {
-      "connectionPoolTimeout": "The PostgreSQL connection timeout was increased to 30 seconds.",
-      "connectionPoolSize": "The PostgreSQL connection pool size was increased to 50 connections from the original 20."
-    },
+    "answer": "{'connectionPoolTimeout': 'The PostgreSQL connection timeout was increased to 30 seconds.', 'connectionPoolSize': 'The PostgreSQL connection pool size was increased to 50 connections from the original 20.'}",
     "source_document": "project_chimera_12"
   },
   {
@@ -514,5 +498,1010 @@
     "question": "How do I simulate a scenario where two agents with different models interact with each other using the LangChain framework within Project Chimera?",
     "answer": "You can simulate a scenario where two agents with different models interact with each other using the LangChain framework within Project Chimera by creating two separate LangChain agents, defining their respective models, and then using the `simulate_interaction` function from the Evaluation Framework to simulate the interaction between the two agents.",
     "source_document": "project_chimera_1"
+  },
+  {
+    "question": "What library will be used to develop the user interface of Project Nexus?",
+    "answer": "React",
+    "source_document": "project_nexus_11"
+  },
+  {
+    "question": "What technology will be used for metadata management in Project Nexus?",
+    "answer": "Apache Atlas",
+    "source_document": "project_nexus_11"
+  },
+  {
+    "question": "What database will be used for storing and managing archived data in Project Deepvault?",
+    "answer": "Apache HBase",
+    "source_document": "project_deepvault_16"
+  },
+  {
+    "question": "What protocol will be used for encrypting data in transit in the Deepvault system?",
+    "answer": "SSL/TLS",
+    "source_document": "project_deepvault_16"
+  },
+  {
+    "question": "What is the expected word count for the Project Chimera runbook?",
+    "answer": "400-600 words",
+    "source_document": "project_chimera_9"
+  },
+  {
+    "question": "What command can be used to scale deployments in the step-by-step procedure of the Project Chimera runbook?",
+    "answer": "kubectl",
+    "source_document": "project_chimera_9"
+  },
+  {
+    "question": "What is the desired outcome for the Speed driver in Project Sentinel?",
+    "answer": "Sub-second latency for critical alerts",
+    "source_document": "project_sentinel_17"
+  },
+  {
+    "question": "What technology is used for the Ingestion API in Project Sentinel?",
+    "answer": "Go (Gin), gRPC, Kafka Producer",
+    "source_document": "project_sentinel_17"
+  },
+  {
+    "question": "What is the CVE number of the security vulnerability found in the auth microservice?",
+    "answer": "CVE-2024-1234",
+    "source_document": "project_chimera_17"
+  },
+  {
+    "question": "What command is used to set the image for the auth-service deployment in the rollback script?",
+    "answer": "kubectl set image deployment/auth-service auth-service=repo/auth:old",
+    "source_document": "project_chimera_17"
+  },
+  {
+    "question": "Who attended the Project Aurora engineering sync on June 9, 2025?",
+    "answer": "Sarah Chen, Marcus Vance, Elena Rostova, David Kim, Priya Patel",
+    "source_document": "project_aurora_14"
+  },
+  {
+    "question": "What was the observed reduction in inference latency after using ONNX export for the Model v2.3?",
+    "answer": "38%",
+    "source_document": "project_aurora_14"
+  },
+  {
+    "question": "What database migration tool has been suggested for use in Project Sentinel?",
+    "answer": "AWS DMS",
+    "source_document": "project_sentinel_24"
+  },
+  {
+    "question": "What potential issue has been identified with the application's ORM during the migration to PostgreSQL?",
+    "answer": "It may need to be tweaked for PostgreSQL",
+    "source_document": "project_sentinel_24"
+  },
+  {
+    "question": "Who is the Project Lead for Project Sentinel Engineering Sync?",
+    "answer": "Johnathan Lee",
+    "source_document": "project_sentinel_1"
+  },
+  {
+    "question": "What is the deadline for Emily Patel to review the software code changes for potential issues?",
+    "answer": "June 15, 2025",
+    "source_document": "project_sentinel_1"
+  },
+  {
+    "question": "What encryption standard is recommended for data at rest in Project Chimera?",
+    "answer": "AES-256",
+    "source_document": "project_chimera_17"
+  },
+  {
+    "question": "What protocol is suggested for secure API integration in Project Chimera?",
+    "answer": "HTTPS",
+    "source_document": "project_chimera_17"
+  },
+  {
+    "question": "What RBAC role is required for kubectl access to the k8s-prod-chimera cluster?",
+    "answer": "devops-deployer",
+    "source_document": "project_chimera_10"
+  },
+  {
+    "question": "How do I verify that the Helm chart is correctly packaged for the Chimera release?",
+    "answer": "curl -s -I https://registry.omnisynapse.com/v2/chimera/manifests/<tag> returns 200",
+    "source_document": "project_chimera_10"
+  },
+  {
+    "question": "What are the prerequisites for the environment to configure log rotation on the Aurora application servers?",
+    "answer": "Ubuntu 22.04 LTS (Apache-2.4, PHP-8.1) on all Aurora nodes",
+    "source_document": "project_aurora_5"
+  },
+  {
+    "question": "How do I verify that log files have been rotated correctly?",
+    "answer": "Presence of '*.log.1', '*.log.2.gz', etc. in the output of 'ls -lh /var/log/aurora/*.log*'",
+    "source_document": "project_aurora_5"
+  },
+  {
+    "question": "What is the name of the project that the engineers are working on?",
+    "answer": "Project Titan",
+    "source_document": "project_titan_24"
+  },
+  {
+    "question": "How many engineers are participating in the Slack channel conversation?",
+    "answer": "4",
+    "source_document": "project_titan_24"
+  },
+  {
+    "question": "What was the peak error rate during the incident on July 14, 2025?",
+    "answer": "100%",
+    "source_document": "project_nexus_16"
+  },
+  {
+    "question": "At what time was the Vector DB connection pool fully exhausted?",
+    "answer": "14:45 UTC",
+    "source_document": "project_nexus_16"
+  },
+  {
+    "question": "What version of OpenSSL is recommended for the Project Titan certificate rotation process?",
+    "answer": "version 3.x or higher",
+    "source_document": "project_titan_16"
+  },
+  {
+    "question": "How do I update the certificate expiration dates in the CertManager configuration file?",
+    "answer": "Using the command vim /path/to/certmanager/config.yaml and updating the expiration_date field",
+    "source_document": "project_titan_16"
+  },
+  {
+    "question": "What method and path are used to create a new endpoint in Project Aurora?",
+    "answer": "POST /api/v1/endpoints",
+    "source_document": "project_aurora_10"
+  },
+  {
+    "question": "How is authentication handled for the Project Aurora API?",
+    "answer": "Bearer token, API key in Authorization header",
+    "source_document": "project_aurora_10"
+  },
+  {
+    "question": "What was the version of titan-data-ingest that introduced the memory leak issue?",
+    "answer": "v2.4.1-rc3",
+    "source_document": "project_titan_15"
+  },
+  {
+    "question": "At what time did the autoscaler fail to provision additional pods due to quota limit?",
+    "answer": "02:15:00 UTC",
+    "source_document": "project_titan_15"
+  },
+  {
+    "question": "What was the cause of the 502 errors from the auth microservice after the last deploy?",
+    "answer": "A race condition in the token refresh logic",
+    "source_document": "project_sentinel_25"
+  },
+  {
+    "question": "What change was made to the cache init timeout to prevent sync.WaitGroup timeouts?",
+    "answer": "The timeout was tightened from 5s to 2s and a fallback was added",
+    "source_document": "project_sentinel_25"
+  },
+  {
+    "question": "Who is taking over the on-call shift for Project Deepvault at 10:00?",
+    "answer": "@j.patel",
+    "source_document": "project_deepvault_29"
+  },
+  {
+    "question": "What is the proposed new value for the max_connections setting in the Redis configuration?",
+    "answer": "150",
+    "source_document": "project_deepvault_29"
+  },
+  {
+    "question": "What version of Apache Kafka is used in Project Titan?",
+    "answer": "v3.1.0",
+    "source_document": "project_titan_11"
+  },
+  {
+    "question": "How many nodes are in the Cassandra Cluster?",
+    "answer": "5",
+    "source_document": "project_titan_11"
+  },
+  {
+    "question": "What framework is used for data transformation and processing in the Data Processing Service?",
+    "answer": "Apache Beam 2.44.x",
+    "source_document": "project_titan_12"
+  },
+  {
+    "question": "What library is used for connections to the primary database?",
+    "answer": "psycopg2",
+    "source_document": "project_titan_12"
+  },
+  {
+    "question": "What is the title of the Project Titan meeting?",
+    "answer": "# Project Titan Engineering Sync — July 14, 2025",
+    "source_document": "project_titan_15"
+  },
+  {
+    "question": "What is the proposed solution to latency issues between LiDAR and radar?",
+    "answer": "a time-synchronized middleware",
+    "source_document": "project_titan_15"
+  },
+  {
+    "question": "What was the 95th percentile request time during the latency spike at 08:47 am?",
+    "answer": "340 ms",
+    "source_document": "project_sentinel_26"
+  },
+  {
+    "question": "What is the threshold for triggering the RedisConnHigh alert in the Prometheus rule?",
+    "answer": "85% of maxclients",
+    "source_document": "project_sentinel_26"
+  },
+  {
+    "question": "What is the prefix for the set of RESTful APIs exposed by Project Chimera?",
+    "answer": "/chimera/v1/",
+    "source_document": "project_chimera_18"
+  },
+  {
+    "question": "How can I verify network policy rules in the chimera-prod namespace?",
+    "answer": "kubectl get networkpolicy -n chimera-prod -o yaml",
+    "source_document": "project_chimera_18"
+  },
+  {
+    "question": "Who attended the Project Titan engineering sync meeting on June 16, 2025?",
+    "answer": "Dr. Aris Thorne, Maya Lin, Julian Vance, Chloe Dubois",
+    "source_document": "project_titan_16"
+  },
+  {
+    "question": "What was the current p95 latency of the v0.8.3 rollout presented by Maya?",
+    "answer": "420ms",
+    "source_document": "project_titan_16"
+  },
+  {
+    "question": "What is the recommended buffer size for Project Chimera?",
+    "answer": "10MB (1024 * 1024 * 10)",
+    "source_document": "project_chimera_19"
+  },
+  {
+    "question": "What type of indexes should be created for the Storage Service?",
+    "answer": "A composite index on data_type and stored_timestamp columns",
+    "source_document": "project_chimera_19"
+  },
+  {
+    "question": "How much memory is allocated to the Spark driver in Project Titan?",
+    "answer": "16G",
+    "source_document": "project_titan_13"
+  },
+  {
+    "question": "What was the error code associated with the DataFlow Engine crash during the Project Chimera incident?",
+    "answer": "DFE-503",
+    "source_document": "project_chimera_13"
+  },
+  {
+    "question": "At what time did the team notice data corruption during the Project Chimera incident?",
+    "answer": "8:00 AM PT",
+    "source_document": "project_chimera_13"
+  },
+  {
+    "question": "What version of the AWS CLI is required to execute the Project Nexus database failover?",
+    "answer": "v2.13+",
+    "source_document": "project_nexus_11"
+  },
+  {
+    "question": "What is the expected downtime for the application during the primary-to-standby failover of the Project Nexus PostgreSQL cluster?",
+    "answer": "<30 seconds",
+    "source_document": "project_nexus_11"
+  },
+  {
+    "question": "What is the required format for including an OAuth 2.0 Bearer token in a request?",
+    "answer": "Authorization: Bearer <access_token> and Content-Type: application/json",
+    "source_document": "project_titan_4"
+  },
+  {
+    "question": "What information is returned in the response when a model is successfully deployed?",
+    "answer": "model_id, model_name, version, status, created_at, and deployment_url",
+    "source_document": "project_titan_4"
+  },
+  {
+    "question": "Who attended the Project Aurora Engineering Sync meeting on July 14, 2025?",
+    "answer": "Elena Rostova, Marcus Chen, Priya Desai, David Okonkwo",
+    "source_document": "project_aurora_15"
+  },
+  {
+    "question": "What was the proposed solution to address the CI/CD pipeline flakiness and test infrastructure issues?",
+    "answer": "Moving to GitLab runners with dedicated node pools and adding retry logic with exponential backoff for integration tests",
+    "source_document": "project_aurora_15"
+  },
+  {
+    "question": "What HTTP method is used to create a new notification for a project event?",
+    "answer": "POST",
+    "source_document": "project_atlas_1"
+  },
+  {
+    "question": "What error code is returned if a notification is not found when trying to retrieve it by ID?",
+    "answer": "404",
+    "source_document": "project_atlas_1"
+  },
+  {
+    "question": "What encryption algorithms are recommended for protecting sensitive data in Project Titan?",
+    "answer": "AES-256 and RSA-2048",
+    "source_document": "project_titan_9"
+  },
+  {
+    "question": "What are the three main components of the access control flow in Project Titan using RBAC?",
+    "answer": "Auth Server, RBAC Service, Access Control Service",
+    "source_document": "project_titan_9"
+  },
+  {
+    "question": "What is the purpose of log rotation in Project Deepvault?",
+    "answer": "to prevent excessive disk usage and maintain system performance",
+    "source_document": "project_deepvault_12"
+  },
+  {
+    "question": "Where is the logrotate configuration file typically located?",
+    "answer": "/etc/logrotate.conf",
+    "source_document": "project_deepvault_12"
+  },
+  {
+    "question": "What is the required end-to-end latency for critical alerts in Project Nexus?",
+    "answer": "<200 ms",
+    "source_document": "project_nexus_12"
+  },
+  {
+    "question": "What technology is used for the Stream Processing component in Project Nexus?",
+    "answer": "Apache Flink 1.18",
+    "source_document": "project_nexus_12"
+  },
+  {
+    "question": "What was the severity of the incident reported by the Ops Team on June 9, 2025?",
+    "answer": "P1 (Business-critical)",
+    "source_document": "project_aurora_6"
+  },
+  {
+    "question": "At what time did the Kafka consumer lag drop to 200 k after applying a temporary consumer configuration?",
+    "answer": "09:10",
+    "source_document": "project_aurora_6"
+  },
+  {
+    "question": "What are the possible values for cluster.mode in the atlas-config.yaml file?",
+    "answer": "dedicated, shared, hybrid",
+    "source_document": "project_atlas_2"
+  },
+  {
+    "question": "How do I validate the configuration for Project Atlas?",
+    "answer": "using atlas-cli validate",
+    "source_document": "project_atlas_2"
+  },
+  {
+    "question": "What HTTP method is used to create a new analytics session?",
+    "answer": "POST",
+    "source_document": "project_deepvault_12"
+  },
+  {
+    "question": "What error code is returned when a session is not found for the Get Session Results endpoint?",
+    "answer": "404",
+    "source_document": "project_deepvault_12"
+  },
+  {
+    "question": "What is the endpoint to retrieve a list of metrics for a specific user?",
+    "answer": "GET /users/{username}/metrics",
+    "source_document": "project_sentinel_16"
+  },
+  {
+    "question": "What is the required format for the request body when logging app performance metrics?",
+    "answer": "{\"timestamp\": \"string\", \"cpu\": \"number\", \"memory\": \"number\", \"responseTime\": \"number\"}",
+    "source_document": "project_sentinel_16"
+  },
+  {
+    "question": "What is the required throughput for Project Chimera's real-time processing?",
+    "answer": "1M events/sec",
+    "source_document": "project_chimera_15"
+  },
+  {
+    "question": "What databases are considered for the storage layer in Project Chimera's architecture?",
+    "answer": "InfluxDB, S3, BigQuery",
+    "source_document": "project_chimera_15"
+  },
+  {
+    "question": "What IAM role is required to scale the Aurora micro-service cluster in production?",
+    "answer": "admin",
+    "source_document": "project_aurora_6"
+  },
+  {
+    "question": "What is the minimum size specified in the scaling config when applying scaling via EKS?",
+    "answer": "2",
+    "source_document": "project_aurora_6"
+  },
+  {
+    "question": "What is the target response time for the Inference Service?",
+    "answer": "200 ms",
+    "source_document": "project_chimera_16"
+  },
+  {
+    "question": "How much retention time does the Kafka event ingestion system have?",
+    "answer": "64 GB",
+    "source_document": "project_chimera_16"
+  },
+  {
+    "question": "What is the primary key for the NeuralNode entity in Project Titan's data model?",
+    "answer": "node_id (UUID)",
+    "source_document": "project_titan_10"
+  },
+  {
+    "question": "What is the format of the timestamp in a ContextBundle?",
+    "answer": "ISO 8601 format",
+    "source_document": "project_titan_10"
+  },
+  {
+    "question": "What is the current status of the integration of the neural interface with the AI processing unit?",
+    "answer": "80% complete",
+    "source_document": "project_chimera_20"
+  },
+  {
+    "question": "By what date is Maya Patel supposed to debug the NeuroInterface API for data consistency issues?",
+    "answer": "July 21",
+    "source_document": "project_chimera_20"
+  },
+  {
+    "question": "What time did the CDS service completely fail and result in temporary data loss?",
+    "answer": "03:00 UTC",
+    "source_document": "project_sentinel_15"
+  },
+  {
+    "question": "How many users were affected by the temporary data loss during the Project Sentinel incident?",
+    "answer": "10,000",
+    "source_document": "project_sentinel_15"
+  },
+  {
+    "question": "What databases are planned for use in Project Nexus?",
+    "answer": "DynamoDB for real-time, Redshift for data warehouse, and Redis for caching",
+    "source_document": "project_nexus_13"
+  },
+  {
+    "question": "What is the required latency for real-time processing in Project Nexus?",
+    "answer": "under 200ms",
+    "source_document": "project_nexus_13"
+  },
+  {
+    "question": "What is the target latency for critical alerts in Project Titan?",
+    "answer": "Sub-second end-to-end latency for critical alerts, with 95% of alerts delivered in less than 800ms",
+    "source_document": "project_titan_14"
+  },
+  {
+    "question": "What version of Kubernetes is used to deploy Project Titan?",
+    "answer": "Kubernetes 1.30",
+    "source_document": "project_titan_14"
+  },
+  {
+    "question": "What version of Envoy is used by the Service Mesh Gateway?",
+    "answer": "Envoy v1.18",
+    "source_document": "project_sentinel_2"
+  },
+  {
+    "question": "What is the deadline for the upcoming SOC 2 Type II audit?",
+    "answer": "2025-08-15",
+    "source_document": "project_sentinel_2"
+  },
+  {
+    "question": "What is the current issue with Project Aurora that is being handed off during the on-call shift change?",
+    "answer": "Project Aurora is stable, but it's seeing 503 spikes on the `/ingest` endpoint during peak load.",
+    "source_document": "project_aurora_21"
+  },
+  {
+    "question": "What change is being made to the connection pool size and idle timeout to address the connection pool exhaustion issue?",
+    "answer": "The connection pool size is being bumped to 45 and the idle timeout is being increased, with the addition of a circuit breaker.",
+    "source_document": "project_aurora_21"
+  },
+  {
+    "question": "What is the HTTP method used to create a new analysis session?",
+    "answer": "POST",
+    "source_document": "project_aurora_11"
+  },
+  {
+    "question": "What error code is returned when an analysis session is not found?",
+    "answer": "404",
+    "source_document": "project_aurora_11"
+  },
+  {
+    "question": "What was the error message in the Spark logs that contributed to the data pipeline latency spike?",
+    "answer": "Task not serializable: org.apache.spark.scheduler.cluster.SparkCluster",
+    "source_document": "project_nexus_24"
+  },
+  {
+    "question": "How long after the deployment was scheduled did it go live?",
+    "answer": "30 minutes",
+    "source_document": "project_nexus_24"
+  },
+  {
+    "question": "What are the main sections that need to be covered in the Project Aurora Wiki page?",
+    "answer": "Overview, Core Entities, Relationships, Constraints and Validations, Example Use Case, and Cross-References",
+    "source_document": "project_aurora_15"
+  },
+  {
+    "question": "How should the attributes of each entity, such as Users, Devices, and Events, be listed in the wiki page?",
+    "answer": "Using bullet points",
+    "source_document": "project_aurora_15"
+  },
+  {
+    "question": "What was the error code associated with the memory leak issue in the Deepvault data-ingestion pipeline?",
+    "answer": "ERR_MEM_LEAK_01",
+    "source_document": "project_deepvault_9"
+  },
+  {
+    "question": "At what time was the decision made to scale the deepvault-api replicas from 4 to 8?",
+    "answer": "12:15:00",
+    "source_document": "project_deepvault_9"
+  },
+  {
+    "question": "What was the root cause of the data pipeline corruption event in Project Titan?",
+    "answer": "Kafka Consumer Group Mis-configuration",
+    "source_document": "project_titan_16"
+  },
+  {
+    "question": "At what time did the Kafka broker kafka-01 restart automatically due to memory pressure?",
+    "answer": "02:20 UTC",
+    "source_document": "project_titan_16"
+  },
+  {
+    "question": "What are the primary technologies used in Project Nexus?",
+    "answer": "Kubernetes, Kafka, Flink, gRPC, Postgres, Redis",
+    "source_document": "project_nexus_14"
+  },
+  {
+    "question": "What is the target end-to-end latency for critical alerts in Project Nexus?",
+    "answer": "under 50ms",
+    "source_document": "project_nexus_14"
+  },
+  {
+    "question": "What HTTP method is used to create a new user account in the User Management Service?",
+    "answer": "POST",
+    "source_document": "project_aurora_12"
+  },
+  {
+    "question": "What error code is returned if a user is not found when trying to retrieve them by ID?",
+    "answer": "404",
+    "source_document": "project_aurora_12"
+  },
+  {
+    "question": "What type of database will Deepvault use for storing and querying data?",
+    "answer": "A distributed NoSQL database (e.g., Apache Cassandra)",
+    "source_document": "project_deepvault_17"
+  },
+  {
+    "question": "What library will be utilized for NLP tasks in the search engine?",
+    "answer": "spaCy library",
+    "source_document": "project_deepvault_17"
+  },
+  {
+    "question": "Who are the attendees of the Project Chimera Engineering Sync meeting on June 16, 2025?",
+    "answer": "Alex Carter, Samira Khan, Jordan Lee, Priya Desai",
+    "source_document": "project_chimera_21"
+  },
+  {
+    "question": "What is the current latency reported by Priya during the discussion on Real-Time Latency Optimization?",
+    "answer": "18ms",
+    "source_document": "project_chimera_21"
+  },
+  {
+    "question": "What is the target end-to-end latency for real-time visibility in Project Atlas?",
+    "answer": "≤ 800 ms",
+    "source_document": "project_atlas_9"
+  },
+  {
+    "question": "What is the required query throughput on 12 TB of stored data for historical analysis in Project Atlas?",
+    "answer": "≥ 5 k QPS",
+    "source_document": "project_atlas_9"
+  },
+  {
+    "question": "What was the initial impact of the authentication service degradation on June 9, 2025?",
+    "answer": "A minor latency spike with no errors yet, as AuthService logs showed rising CacheMiss counters and GET /auth/token latency climbed from 45 ms to 1.2 s.",
+    "source_document": "project_nexus_17"
+  },
+  {
+    "question": "What was the root cause of the database overload during the incident?",
+    "answer": "A mis-configured Redis cache eviction policy that caused a stale cache, resulting in a 2-x increase in DB read operations and subsequent queries timing out with SQLTimeoutException.",
+    "source_document": "project_nexus_17"
+  },
+  {
+    "question": "What tools are required to perform log rotation for Project Atlas services?",
+    "answer": "kubectl, ssh, journalctl",
+    "source_document": "project_atlas_2"
+  },
+  {
+    "question": "What is the maintenance window for performing log rotation on Project Atlas?",
+    "answer": "02:00-04:00 UTC",
+    "source_document": "project_atlas_2"
+  },
+  {
+    "question": "What strategy is being considered for the database migration to minimize downtime?",
+    "answer": "Blue-green deployment strategy",
+    "source_document": "project_aurora_22"
+  },
+  {
+    "question": "How long is the estimated timeline for the database migration?",
+    "answer": "2-3 weeks",
+    "source_document": "project_aurora_22"
+  },
+  {
+    "question": "What version of Apache NiFi is used for data collection, processing, and forwarding in Project Deepvault?",
+    "answer": "1.14.3",
+    "source_document": "project_deepvault_18"
+  },
+  {
+    "question": "What type of database is used for metadata management in Project Deepvault?",
+    "answer": "Graph database like Neo4j",
+    "source_document": "project_deepvault_18"
+  },
+  {
+    "question": "What encryption standards are used for Project Deepvault?",
+    "answer": "AES-256 and TLS",
+    "source_document": "project_deepvault_19"
+  },
+  {
+    "question": "What are the performance requirements for response times in Project Deepvault?",
+    "answer": "under 200 ms",
+    "source_document": "project_deepvault_19"
+  },
+  {
+    "question": "What is the replication factor for the Kafka Cluster in the Ingestion Layer?",
+    "answer": "3",
+    "source_document": "project_titan_11"
+  },
+  {
+    "question": "What programming language is used for the Titan-Gateway component in the Ingestion Layer?",
+    "answer": "Go (Gin)",
+    "source_document": "project_titan_11"
+  },
+  {
+    "question": "What is the default role assigned to a new user when they are registered?",
+    "answer": "user",
+    "source_document": "project_titan_5"
+  },
+  {
+    "question": "What HTTP status code is returned if a request contains an invalid or missing token?",
+    "answer": "401 Unauthorized",
+    "source_document": "project_titan_5"
+  },
+  {
+    "question": "What are the primary objectives of Project Chimera?",
+    "answer": "Reducing data pipeline latency by 60%, achieving 99.95% availability, and supporting dynamic schema evolution without service disruption.",
+    "source_document": "project_chimera_17"
+  },
+  {
+    "question": "What service mesh is utilized by the control plane in Project Chimera's architecture?",
+    "answer": "Istio",
+    "source_document": "project_chimera_17"
+  },
+  {
+    "question": "What version of the library will be used to update the authentication service?",
+    "answer": "2.5.1",
+    "source_document": "project_aurora_23"
+  },
+  {
+    "question": "What is the planned deployment schedule for the updated library?",
+    "answer": "Staging tonight and then to production tomorrow",
+    "source_document": "project_aurora_23"
+  },
+  {
+    "question": "Who is responsible for verifying the effectiveness of the security patch?",
+    "answer": "Emily Chen",
+    "source_document": "project_sentinel_3"
+  },
+  {
+    "question": "When is the follow-up meeting scheduled to review progress and discuss next steps?",
+    "answer": "June 16, 2025",
+    "source_document": "project_sentinel_3"
+  },
+  {
+    "question": "What is the purpose of the Project Nexus runbook at OmniSynapse Corp?",
+    "answer": "To ensure the system can handle increased load by scaling out resources",
+    "source_document": "project_nexus_12"
+  },
+  {
+    "question": "What command is used to check the current cluster status in the Project Nexus runbook?",
+    "answer": "kubectl get nodes",
+    "source_document": "project_nexus_12"
+  },
+  {
+    "question": "What is the primary key for the User entity in the Project Aurora data model?",
+    "answer": "user_id (UUID)",
+    "source_document": "project_aurora_16"
+  },
+  {
+    "question": "How long are TelemetryEvent records retained in the hot storage?",
+    "answer": "30 days",
+    "source_document": "project_aurora_16"
+  },
+  {
+    "question": "What is the maximum length of a bucket name?",
+    "answer": "64 characters",
+    "source_document": "project_chimera_16"
+  },
+  {
+    "question": "What HTTP status code is returned when a bucket is created successfully?",
+    "answer": "201 Created",
+    "source_document": "project_chimera_16"
+  },
+  {
+    "question": "What is the expected format for the API documentation output?",
+    "answer": "Markdown API docs",
+    "source_document": "project_atlas_2"
+  },
+  {
+    "question": "What authentication method will be used for the Project Atlas API?",
+    "answer": "Authorization: Bearer <token>",
+    "source_document": "project_atlas_2"
+  },
+  {
+    "question": "What is the structure of the atlas-config.yml file?",
+    "answer": "The atlas-config.yml file contains top-level sections for database, api, data, and logging settings",
+    "source_document": "project_atlas_3"
+  },
+  {
+    "question": "What are the settings available in the database configuration section?",
+    "answer": "The database configuration section defines settings for host, port, username, password, and database name",
+    "source_document": "project_atlas_3"
+  },
+  {
+    "question": "Who took over on-call duties for Deepvault on the night of the production issue?",
+    "answer": "Johnsmith",
+    "source_document": "project_deepvault_30"
+  },
+  {
+    "question": "What change was made to the create_user function to fix the User object not being saved to the database?",
+    "answer": "Adding a user.save() call after creating a new user",
+    "source_document": "project_deepvault_30"
+  },
+  {
+    "question": "What is the purpose of the blue-green deployment in Project Aurora?",
+    "answer": "minimizing downtime and reducing risk",
+    "source_document": "project_aurora_7"
+  },
+  {
+    "question": "What type of information should be included in the on-call escalation contacts section of the runbook?",
+    "answer": "names, roles, and contact methods of primary, secondary, and tertiary contacts",
+    "source_document": "project_aurora_7"
+  },
+  {
+    "question": "What was the previous value of the max.poll.records setting before it was changed in the atlas-ingest-v1.4.3 release?",
+    "answer": "2 000",
+    "source_document": "project_atlas_10"
+  },
+  {
+    "question": "At what time did the Prometheus alert KAFKA_CONSUMER_LAG_HIGH trigger on June 2, 2025?",
+    "answer": "08:13:01",
+    "source_document": "project_atlas_10"
+  },
+  {
+    "question": "What are the main keywords related to performance tuning in Project Atlas?",
+    "answer": "Latency, Throughput, GPU utilization, Memory pressure",
+    "source_document": "project_atlas_4"
+  },
+  {
+    "question": "What is the purpose of running 'atlas-cli diagnose'?",
+    "answer": "To perform pre-tuning checks",
+    "source_document": "project_atlas_4"
+  },
+  {
+    "question": "What type of errors are being seen with the cache invalidation issue in Project Chimera?",
+    "answer": "500 and 502 errors",
+    "source_document": "project_chimera_18"
+  },
+  {
+    "question": "When is the postmortem meeting scheduled to discuss the cache invalidation issue?",
+    "answer": "Tomorrow at 2 PM",
+    "source_document": "project_chimera_18"
+  },
+  {
+    "question": "What are the recommended system requirements for the Deepvault Server?",
+    "answer": "8 vCPUs, 16 GB RAM, and 1 TB storage (expandable)",
+    "source_document": "project_deepvault_11"
+  },
+  {
+    "question": "What type of encryption should be used for data at rest in Deepvault?",
+    "answer": "Server-side encryption using a customer-managed key",
+    "source_document": "project_deepvault_11"
+  },
+  {
+    "question": "What are the main conditions that must be met before performing a rollback in Project Nexus?",
+    "answer": "A failed deployment, system instability, or on-call engineer approval",
+    "source_document": "project_nexus_13"
+  },
+  {
+    "question": "What are some of the tools and access rights required for the rollback procedure in Project Nexus?",
+    "answer": "SSH, CLI, and access to repos",
+    "source_document": "project_nexus_13"
+  },
+  {
+    "question": "What was the peak consumer lag during the incident on June 9, 2025?",
+    "answer": "45 minutes",
+    "source_document": "project_sentinel_16"
+  },
+  {
+    "question": "At what time was the post-mortem kickoff meeting scheduled after the incident?",
+    "answer": "05:45:00 UTC",
+    "source_document": "project_sentinel_16"
+  },
+  {
+    "question": "What is the expiration time for an access token?",
+    "answer": "15 minutes",
+    "source_document": "project_nexus_15"
+  },
+  {
+    "question": "What is included in the JWT payload?",
+    "answer": "sub, email, roles, iat, exp",
+    "source_document": "project_nexus_15"
+  },
+  {
+    "question": "What are the main metrics for tuning objectives in Project Nexus?",
+    "answer": "P99 latency, TPS, Memory footprint",
+    "source_document": "project_nexus_14"
+  },
+  {
+    "question": "How can I test changes made to Project Nexus for performance tuning?",
+    "answer": "Using load testing tools, such as nexus-bench --duration=300s",
+    "source_document": "project_nexus_14"
+  },
+  {
+    "question": "What is the HTTP method used to create a new analysis request?",
+    "answer": "POST",
+    "source_document": "project_deepvault_13"
+  },
+  {
+    "question": "What error code is returned when an analysis is not found?",
+    "answer": "404",
+    "source_document": "project_deepvault_13"
+  },
+  {
+    "question": "How many CPU cores are in each node of the Apache Spark cluster?",
+    "answer": "8",
+    "source_document": "project_chimera_18"
+  },
+  {
+    "question": "What is used for integrating third-party data sources and destinations in the Data Ingestion Layer?",
+    "answer": "Kafka Connect",
+    "source_document": "project_chimera_18"
+  },
+  {
+    "question": "What was the error code associated with the authentication service degradation incident?",
+    "answer": "503 Service Unavailable",
+    "source_document": "project_aurora_7"
+  },
+  {
+    "question": "At what time was the rollback performed during the incident resolution?",
+    "answer": "10:37 AM",
+    "source_document": "project_aurora_7"
+  },
+  {
+    "question": "What payload triggered the SSRF issue in the local sandbox test?",
+    "answer": "url=\"http://169.254.169.254/latest/meta-data/\"",
+    "source_document": "project_nexus_25"
+  },
+  {
+    "question": "At what time was the production deploy of the whitelist patch completed?",
+    "answer": "09:41 UTC",
+    "source_document": "project_nexus_25"
+  },
+  {
+    "question": "What was the duration of the Project Chimera database outage on July 14, 2025?",
+    "answer": "55 minutes",
+    "source_document": "project_chimera_14"
+  },
+  {
+    "question": "What was the error code and message that occurred in the walreceiver.c module during the incident?",
+    "answer": "FATAL: cannot open WAL file: Permission denied (errno=13)",
+    "source_document": "project_chimera_14"
+  },
+  {
+    "question": "What is the HTTP method and path for sending a notification in the Project Titan API?",
+    "answer": "POST /api/v1/notifications",
+    "source_document": "project_titan_6"
+  },
+  {
+    "question": "What scopes are required for authentication with the Project Titan API?",
+    "answer": "notify:write, notify:read",
+    "source_document": "project_titan_6"
+  },
+  {
+    "question": "What version of Apache Kafka is used for the Data Ingestion Service?",
+    "answer": "v3.1.0",
+    "source_document": "project_nexus_15"
+  },
+  {
+    "question": "What programming language and library are used for the Analytics Service?",
+    "answer": "Python (v3.9.7) and scikit-learn (v1.1.2)",
+    "source_document": "project_nexus_15"
+  },
+  {
+    "question": "What is the CVE number of the security vulnerability in the Deepvault storage backend?",
+    "answer": "CVE-2023-1234",
+    "source_document": "project_deepvault_31"
+  },
+  {
+    "question": "What library was decided to be used for token validation logic instead of rolling out their own implementation?",
+    "answer": "crypto-auth",
+    "source_document": "project_deepvault_31"
+  },
+  {
+    "question": "What HTTP method and path are used for sending notifications in Project Aurora?",
+    "answer": "POST /notifications",
+    "source_document": "project_aurora_13"
+  },
+  {
+    "question": "What error code is returned when a user's credentials are invalid during the authentication process?",
+    "answer": "401",
+    "source_document": "project_aurora_13"
+  },
+  {
+    "question": "What is the threshold for average response time in production?",
+    "answer": "800 ms",
+    "source_document": "project_deepvault_32"
+  },
+  {
+    "question": "At what time is the team planning to roll out the hot-fix to production?",
+    "answer": "10:00",
+    "source_document": "project_deepvault_32"
+  },
+  {
+    "question": "What is the maximum length of a project name in characters?",
+    "answer": "100",
+    "source_document": "project_chimera_17"
+  },
+  {
+    "question": "How long does an OAuth 2.0 bearer token issued via the OmniAuth service expire after?",
+    "answer": "3600 seconds",
+    "source_document": "project_chimera_17"
+  },
+  {
+    "question": "Who attended the Project Atlas engineering sync meeting on July 7, 2025?",
+    "answer": "Sarah Chen, Marcus Thorne, Priya Sharma, Leo Vance",
+    "source_document": "project_atlas_20"
+  },
+  {
+    "question": "What was proposed to address the API Gateway latency degradation issue?",
+    "answer": "Implementing adaptive circuit breaking with a sliding window of 100 requests and a 50% error threshold",
+    "source_document": "project_atlas_20"
+  },
+  {
+    "question": "What version of Apache Kafka is used in the Data Ingestion Layer of Project Sentinel?",
+    "answer": "v3.1.0",
+    "source_document": "project_sentinel_18"
+  },
+  {
+    "question": "What is the target accuracy of the Anomaly Detection Model in Project Sentinel?",
+    "answer": "95%",
+    "source_document": "project_sentinel_18"
+  },
+  {
+    "question": "What technology is used for data ingestion and processing framework in Project Aurora?",
+    "answer": "Apache NiFi",
+    "source_document": "project_aurora_13"
+  },
+  {
+    "question": "What is the name of the component responsible for ingesting data from multiple sources, including IoT devices, social media, and enterprise systems?",
+    "answer": "data-ingestion",
+    "source_document": "project_aurora_13"
+  },
+  {
+    "question": "Who is on call for the next 24 hours?",
+    "answer": "Alex",
+    "source_document": "project_nexus_27"
+  },
+  {
+    "question": "What action did Eva suggest Ryan take to debug the 500 error in prod?",
+    "answer": "Enable debug mode for the affected service",
+    "source_document": "project_nexus_27"
+  },
+  {
+    "question": "What error code was indicated by monitoring alerts during the incident?",
+    "answer": "DATA_PARSE_ERROR_001",
+    "source_document": "project_sentinel_19"
+  },
+  {
+    "question": "At what time was the incident officially declared on June 16, 2025?",
+    "answer": "02:45 UTC",
+    "source_document": "project_sentinel_19"
+  },
+  {
+    "question": "What is the purpose of the Project Atlas Wiki: Troubleshooting Playbook?",
+    "answer": "It provides a structured approach to diagnosing and resolving common issues in Project Atlas.",
+    "source_document": "project_atlas_7"
+  },
+  {
+    "question": "Where can I find details about the system architecture of Project Atlas?",
+    "answer": "The System Architecture section",
+    "source_document": "project_atlas_7"
+  },
+  {
+    "question": "What method and path do I use to submit a data ingestion request to the Project Atlas service?",
+    "answer": "POST /ingest",
+    "source_document": "project_atlas_4"
+  },
+  {
+    "question": "How do I authenticate all requests to the Project Atlas API?",
+    "answer": "Using a valid JWT token obtained by making a POST /auth/login request with a valid username and password",
+    "source_document": "project_atlas_4"
   }
 ]

@@ -1,15 +1,15 @@
 from contextlib import asynccontextmanager
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 
 from app.core.models.document import Chunk, Document, DocumentMetadata
 from app.core.models.query import LLMResult, TokenUsage
 
-
 # ---------------------------------------------------------------------------
 # Global: suppress real infrastructure connections for all non-integration tests
 # ---------------------------------------------------------------------------
+
 
 @asynccontextmanager
 async def _null_lifespan(app):
@@ -35,6 +35,7 @@ def sample_chunks():
             document_id="doc-123",
             content="This is a sample document for testing logic.",
             chunk_index=0,
+            score=0.8,
             embedding=[0.1] * 384,
             metadata={"source": "test.md"},
         ),
@@ -43,6 +44,7 @@ def sample_chunks():
             document_id="doc-123",
             content="It contains multiple sentences.",
             chunk_index=1,
+            score=0.8,
             embedding=[0.2] * 384,
             metadata={"source": "test.md"},
         ),
@@ -51,6 +53,7 @@ def sample_chunks():
             document_id="doc-123",
             content="Hopefully it works.",
             chunk_index=2,
+            score=0.8,
             embedding=[0.3] * 384,
             metadata={"source": "test.md"},
         ),

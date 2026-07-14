@@ -35,10 +35,10 @@ from app.infrastructure.query.classifier import (
 # ---------------------------------------------------------------------------
 
 _ROUTING_TABLE: dict[str, str] = {
-    FACTUAL: "hybrid",           # BM25 + vector: best for exact-term retrieval
-    SEMANTIC: "vector",          # Dense vector: best for conceptual understanding
-    COMPARISON: "hybrid_rerank", # Need recall + precision for cross-document comparison
-    COMPLEX: "hybrid_rerank",    # Need both keyword + semantic, then reranked
+    FACTUAL: "hybrid",  # BM25 + vector: best for exact-term retrieval
+    SEMANTIC: "vector",  # Dense vector: best for conceptual understanding
+    COMPARISON: "hybrid_rerank",  # Need recall + precision for cross-document comparison
+    COMPLEX: "hybrid_rerank",  # Need both keyword + semantic, then reranked
 }
 
 

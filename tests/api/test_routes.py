@@ -5,14 +5,12 @@ Uses a minimal isolated FastAPI app (no lifespan, all dependencies mocked)
 so no live infrastructure (Redis, Qdrant, Groq) is needed during CI.
 """
 
-from contextlib import asynccontextmanager
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-import app.api.v1.routes.query as query_route
 from app.api.v1 import api_router
 from app.core.models.document import Chunk, DocumentMetadata
 from app.core.models.query import QueryResponse, TokenUsage
@@ -24,8 +22,10 @@ from app.services.query import QueryService
 
 _META = DocumentMetadata(source="test.md")
 _CHUNK = Chunk(
-    id="c1", document_id="d1",
-    content="DeepVault is a RAG system.", chunk_index=0,
+    id="c1",
+    document_id="d1",
+    content="DeepVault is a RAG system.",
+    chunk_index=0,
     metadata=_META.model_dump(),
 )
 _USAGE = TokenUsage(prompt_tokens=10, completion_tokens=20, total_tokens=30)
@@ -45,16 +45,15 @@ _MOCK_QS.ask.return_value = _QUERY_RESPONSE
 # Build a minimal test app — no lifespan, pure mock dependencies
 # ---------------------------------------------------------------------------
 
+
 def _build_test_app() -> FastAPI:
     """
     Creates a bare FastAPI app with only the v1 router mounted.
     No lifespan = no Redis/Qdrant connections on startup.
     All DI factories return mocks.
     """
+    from app.api.dependencies import get_api_key
     from app.dependencies import (
-        get_cache_service,
-        get_doc_store,
-        get_ingestion_service,
         get_query_service,
         get_redis_cache,
     )
@@ -64,7 +63,7 @@ def _build_test_app() -> FastAPI:
     test_app.include_router(api_router, prefix="/api/v1")
 
     # Bypass API key for all routes
-    test_app.dependency_overrides[query_route.get_api_key] = lambda: "test_key"
+    test_app.dependency_overrides[get_api_key] = lambda: "test_key"
 
     # Return mock query service
     test_app.dependency_overrides[get_query_service] = lambda: _MOCK_QS
@@ -93,6 +92,7 @@ def application():
 # Health routes
 # ---------------------------------------------------------------------------
 
+
 class TestHealthRoutes:
     def test_liveness_returns_200(self, client):
         """GET /health must return 200 with mocked Redis."""
@@ -114,11 +114,13 @@ class TestHealthRoutes:
 # Query routes
 # ---------------------------------------------------------------------------
 
+
 class TestQueryRoute:
     def test_query_route_returns_403_without_api_key(self):
         """Without X-API-KEY, route must return 403."""
         # Build app WITHOUT the key override
         from app.dependencies import get_query_service
+
         bare_app = FastAPI()
         bare_app.include_router(api_router, prefix="/api/v1")
         bare_app.dependency_overrides[get_query_service] = lambda: _MOCK_QS
@@ -184,6 +186,7 @@ class TestQueryRoute:
 # Ingest routes
 # ---------------------------------------------------------------------------
 
+
 class TestIngestRoutes:
     def test_ingest_text_422_missing_source(self, client):
         """Missing `source` field must return 422 Unprocessable Entity."""
@@ -206,6 +209,7 @@ class TestIngestRoutes:
     def test_ingest_text_requires_api_key(self):
         """Without X-API-KEY, ingest must return 403."""
         from app.dependencies import get_query_service
+
         bare_app = FastAPI()
         bare_app.include_router(api_router, prefix="/api/v1")
         bare_app.dependency_overrides[get_query_service] = lambda: _MOCK_QS

@@ -8,7 +8,7 @@ $env:PYTHONUTF8 = 1
 
 # Infra
 Write-Host "Starting Infra..."
-docker compose -f docker/docker-compose.yml up -d redis qdrant
+docker compose -f docker/docker-compose.yml up -d redis qdrant phoenix
 
 # API
 Write-Host "Starting Hardened API..."

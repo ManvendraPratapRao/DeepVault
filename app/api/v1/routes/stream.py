@@ -13,26 +13,17 @@ SSE format used:
     data: [ERROR] <msg>\n\n     – sentinel: unrecoverable error mid-stream
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Security
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
-from fastapi.security import APIKeyHeader
 
 from app.api.schemas.requests import QueryAPIRequest
-from app.config import settings
 from app.core.models.query import QueryRequest
 from app.dependencies import get_query_service
 from app.services.query import QueryService
 
 router = APIRouter()
 
-# Re-use the same API key guard as the query route
-api_key_header = APIKeyHeader(name="X-API-KEY", auto_error=False)
-
-
-async def get_api_key(api_key: str = Security(api_key_header)) -> str:
-    if api_key == settings.API_KEY:
-        return api_key
-    raise HTTPException(status_code=403, detail="Could not validate credentials")
+from app.api.dependencies import rate_limit_dependency
 
 
 @router.post(
@@ -49,7 +40,7 @@ async def stream_query(
     request: QueryAPIRequest,
     fastapi_req: Request,
     service: QueryService = Depends(get_query_service),
-    _auth: str = Depends(get_api_key),
+    _auth: str = Depends(rate_limit_dependency),
 ):
     """
     Streaming variant of POST /api/v1/query.
@@ -72,6 +63,8 @@ async def stream_query(
         user_id=request.user_id,
         session_id=request.session_id,
         filters=request.filters,
+        model_name=request.model_name,
+        messages=request.messages,
     )
 
     async def event_generator():

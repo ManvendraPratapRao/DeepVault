@@ -1,7 +1,6 @@
 import hashlib
 import json
 
-from app.api.middleware.metrics import record_cache_op
 from app.config import settings
 from app.core.models.query import QueryResponse
 from app.infrastructure.cache.redis import RedisCache
@@ -29,12 +28,10 @@ class CacheService:
             try:
                 data = json.loads(raw_val)
                 logger.info(f"Query Cache HIT for key: {key}", extra={"extra_fields": {"cache_hit": True, "key": key}})
-                record_cache_op("query", hit=True)
                 return QueryResponse(**data)
             except Exception as e:
                 logger.warning(f"Failed to deserialize cache payload for {key}: {str(e)}")
 
-        record_cache_op("query", hit=False)
         return None
 
     async def cache_response(self, query_text: str, response: QueryResponse) -> None:
@@ -64,12 +61,10 @@ class CacheService:
 
         if raw_val:
             try:
-                record_cache_op("embedding", hit=True)
                 return json.loads(raw_val)
             except Exception as e:
                 logger.warning(f"Failed to deserialize embedding cache for {key}: {str(e)}")
 
-        record_cache_op("embedding", hit=False)
         return None
 
     async def cache_embedding(self, text: str, embedding: list[float]) -> None:

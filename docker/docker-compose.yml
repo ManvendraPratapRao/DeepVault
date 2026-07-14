@@ -50,36 +50,14 @@ services:
   # Observability Stack (Sessions 17-18)
   # ---------------------------------------------------------------------------
 
-  prometheus:
-    image: prom/prometheus:v2.50.0
+  phoenix:
+    image: arizephoenix/phoenix:latest
     ports:
-      - "9090:9090"
+      - "6006:6006"
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
-    command:
-      - "--config.file=/etc/prometheus/prometheus.yml"
-      - "--storage.tsdb.path=/prometheus"
-      - "--web.console.libraries=/etc/prometheus/console_libraries"
-      - "--web.console.templates=/etc/prometheus/consoles"
-    depends_on:
-      - deepvault-api
-    restart: unless-stopped
-
-  grafana:
-    image: grafana/grafana:10.2.0
-    ports:
-      - "3000:3000"
-    environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=deepvault
-      - GF_AUTH_ANONYMOUS_ENABLED=false
-      - GF_USERS_ALLOW_SIGN_UP=false
-    volumes:
-      - ./grafana/provisioning:/etc/grafana/provisioning:ro
-      - grafana_data:/var/lib/grafana
-    depends_on:
-      - prometheus
+      - phoenix_data:/phoenix
     restart: unless-stopped
 
 volumes:
-  grafana_data:
+
+  phoenix_data:

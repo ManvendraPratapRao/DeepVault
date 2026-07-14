@@ -44,7 +44,9 @@ with st.expander("➕ Submit Test Feedback", expanded=False):
         col1, col2 = st.columns(2)
         with col1:
             test_query = st.text_input("Query", placeholder="What is BM25?")
-            test_answer = st.text_area("Answer", placeholder="BM25 is a keyword-based retrieval algorithm...", height=100)
+            test_answer = st.text_area(
+                "Answer", placeholder="BM25 is a keyword-based retrieval algorithm...", height=100
+            )
         with col2:
             test_rating = st.slider("Rating", min_value=1, max_value=5, value=4, help="1 = terrible, 5 = excellent")
             test_strategy = st.selectbox("Retrieval Strategy", ["vector", "hybrid", "hybrid_rerank", "auto"])
@@ -144,7 +146,9 @@ try:
     if low_rated:
         for entry in low_rated[:10]:
             rating_stars = "⭐" * entry.get("rating", 0)
-            with st.expander(f"{rating_stars} [{entry.get('retrieval_strategy', 'unknown')}] {entry.get('query_text', '')[:80]}"):
+            with st.expander(
+                f"{rating_stars} [{entry.get('retrieval_strategy', 'unknown')}] {entry.get('query_text', '')[:80]}"
+            ):
                 st.caption(f"**Date:** {entry.get('created_at', '—')[:16]}  |  **ID:** `{entry.get('id', '—')}`")
                 if entry.get("comment"):
                     st.warning(f"💬 **Comment:** {entry['comment']}")

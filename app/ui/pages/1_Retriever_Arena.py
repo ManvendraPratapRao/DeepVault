@@ -94,21 +94,25 @@ with st.sidebar:
     API_URL = st.text_input("API Endpoint", value="http://localhost:8000")
     API_KEY = st.text_input("API Token", value="deepvault_secret_key", type="password")
 
-    COL1_CHUNK_STRAT: str = st.selectbox(
-        "Panel A - Chunking Array", options=["fixed", "sliding", "structure", "semantic"], index=0
-    ) or "fixed"
-    COL1_RETRIEVAL_STRAT: str = st.selectbox(
-        "Panel A - Retrieval Algorithm", options=["vector", "hybrid", "hybrid_rerank"], index=0
-    ) or "vector"
+    COL1_CHUNK_STRAT: str = (
+        st.selectbox("Panel A - Chunking Array", options=["sliding", "recursive", "structure", "semantic"], index=0)
+        or "sliding"
+    )
+    COL1_RETRIEVAL_STRAT: str = (
+        st.selectbox("Panel A - Retrieval Algorithm", options=["vector", "hybrid", "hybrid_rerank"], index=0)
+        or "vector"
+    )
 
     st.divider()
 
-    COL2_CHUNK_STRAT: str = st.selectbox(
-        "Panel B - Chunking Array", options=["fixed", "sliding", "structure", "semantic"], index=3
-    ) or "sliding"
-    COL2_RETRIEVAL_STRAT: str = st.selectbox(
-        "Panel B - Retrieval Algorithm", options=["vector", "hybrid", "hybrid_rerank"], index=0
-    ) or "vector"
+    COL2_CHUNK_STRAT: str = (
+        st.selectbox("Panel B - Chunking Array", options=["sliding", "recursive", "structure", "semantic"], index=3)
+        or "recursive"
+    )
+    COL2_RETRIEVAL_STRAT: str = (
+        st.selectbox("Panel B - Retrieval Algorithm", options=["vector", "hybrid", "hybrid_rerank"], index=0)
+        or "vector"
+    )
 
     st.divider()
 
@@ -169,8 +173,8 @@ if prompt := st.chat_input("Ask a question about the synthesized corpus..."):
         # Run both queries concurrently
         async def run_concurrent_queries():
             return await asyncio.gather(
-                query_strategy(prompt, COL1_CHUNK_STRAT, COL1_RETRIEVAL_STRAT, API_URL, API_KEY, TOP_K, TEMPERATURE),
-                query_strategy(prompt, COL2_CHUNK_STRAT, COL2_RETRIEVAL_STRAT, API_URL, API_KEY, TOP_K, TEMPERATURE),
+                query_strategy(str(prompt), str(COL1_CHUNK_STRAT), str(COL1_RETRIEVAL_STRAT), str(API_URL), str(API_KEY), int(TOP_K), float(TEMPERATURE)),
+                query_strategy(str(prompt), str(COL2_CHUNK_STRAT), str(COL2_RETRIEVAL_STRAT), str(API_URL), str(API_KEY), int(TOP_K), float(TEMPERATURE)),
             )
 
         t0 = time.perf_counter()

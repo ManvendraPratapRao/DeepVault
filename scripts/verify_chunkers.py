@@ -9,7 +9,7 @@ if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8")
 
 from app.core.models.document import Document, DocumentMetadata
-from app.infrastructure.chunkers.fixed import FixedWindowChunker
+from app.infrastructure.chunkers.recursive import RecursiveChunker
 from app.infrastructure.chunkers.semantic import SemanticChunker
 from app.infrastructure.chunkers.sliding import SlidingWindowChunker
 from app.infrastructure.chunkers.structure import StructureChunker
@@ -80,21 +80,21 @@ def run_test():
         hash="test-plain-hash",
     )
 
-    # 1. Fixed Window
-    print("\n--- 1. FIXED WINDOW CHUNKER ---")
-    fixed = FixedWindowChunker(chunk_size=300, chunk_overlap=50)
-    fixed_chunks = fixed.chunk(md_doc)
-    print(f"  Chunks created: {len(fixed_chunks)}")
-    for c in fixed_chunks:
-        preview = c.content[:70].replace("\n", " ")
-        print(f"  [{c.chunk_index}] ({len(c.content)} chars) {preview}...")
-
-    # 2. Sliding Window
-    print("\n--- 2. SLIDING WINDOW CHUNKER ---")
-    sliding = SlidingWindowChunker(window_size=400, stride=200)
+    # 1. Sliding Window
+    print("\n--- 1. SLIDING WINDOW CHUNKER ---")
+    sliding = SlidingWindowChunker(chunk_size=300, chunk_overlap=250)
     sliding_chunks = sliding.chunk(md_doc)
     print(f"  Chunks created: {len(sliding_chunks)}")
     for c in sliding_chunks:
+        preview = c.content[:70].replace("\n", " ")
+        print(f"  [{c.chunk_index}] ({len(c.content)} chars) {preview}...")
+
+    # 2. Recursive Character
+    print("\n--- 2. RECURSIVE CHUNKER ---")
+    recursive = RecursiveChunker(chunk_size=400, chunk_overlap=200)
+    recursive_chunks = recursive.chunk(md_doc)
+    print(f"  Chunks created: {len(recursive_chunks)}")
+    for c in recursive_chunks:
         preview = c.content[:70].replace("\n", " ")
         print(f"  [{c.chunk_index}] ({len(c.content)} chars) {preview}...")
 
@@ -120,7 +120,7 @@ def run_test():
     # 5. Structure-based Chunker on PLAIN TEXT (should fallback)
     print("\n--- 5. STRUCTURE CHUNKER (Plain Text -> Fallback) ---")
     fallback_chunks = structure.chunk(plain_doc)
-    print(f"  Chunks created: {len(fallback_chunks)} (should use fixed-window fallback)")
+    print(f"  Chunks created: {len(fallback_chunks)} (should use sliding-window fallback)")
     for c in fallback_chunks:
         preview = c.content[:70].replace("\n", " ")
         print(f"  [{c.chunk_index}] ({len(c.content)} chars) {preview}...")
@@ -129,8 +129,8 @@ def run_test():
     print("\n" + "=" * 70)
     print("SUMMARY")
     print("=" * 70)
-    print(f"  Fixed Window:   {len(fixed_chunks)} chunks")
     print(f"  Sliding Window: {len(sliding_chunks)} chunks")
+    print(f"  Recursive:      {len(recursive_chunks)} chunks")
     print(f"  Semantic:       {len(semantic_chunks)} chunks")
     print(f"  Structure (MD): {len(struct_chunks)} chunks")
     print(f"  Structure (TXT):{len(fallback_chunks)} chunks (fallback)")

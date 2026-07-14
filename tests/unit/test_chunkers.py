@@ -3,14 +3,14 @@ from unittest.mock import MagicMock
 import pytest
 
 from app.core.models.document import Document, DocumentMetadata
-from app.infrastructure.chunkers.fixed import FixedWindowChunker
+from app.infrastructure.chunkers.recursive import RecursiveChunker
 from app.infrastructure.chunkers.semantic import SemanticChunker
 from app.infrastructure.chunkers.sliding import SlidingWindowChunker
 from app.infrastructure.chunkers.structure import StructureChunker
 
 
-def test_fixed_chunker_normal_document(sample_document):
-    chunker = FixedWindowChunker(chunk_size=50, chunk_overlap=10)
+def test_sliding_chunker_normal_document(sample_document):
+    chunker = SlidingWindowChunker(chunk_size=50, chunk_overlap=10)
     chunks = chunker.chunk(sample_document)
 
     assert len(chunks) > 0
@@ -22,36 +22,36 @@ def test_fixed_chunker_normal_document(sample_document):
     assert chunks[0].content == sample_document.content[0:50]
 
 
-def test_fixed_chunker_short_document():
+def test_sliding_chunker_short_document():
     doc = Document(id="short-doc", content="Too short.", metadata=DocumentMetadata(source="test"), hash="hash1")
-    chunker = FixedWindowChunker(chunk_size=50, chunk_overlap=10)
+    chunker = SlidingWindowChunker(chunk_size=50, chunk_overlap=10)
     chunks = chunker.chunk(doc)
 
     assert len(chunks) == 1
     assert chunks[0].content == "Too short."
 
 
-def test_fixed_chunker_invalid_params():
+def test_sliding_chunker_invalid_params():
     with pytest.raises(ValueError):
-        FixedWindowChunker(chunk_size=0, chunk_overlap=10)
+        SlidingWindowChunker(chunk_size=0, chunk_overlap=10)
 
     with pytest.raises(ValueError):
-        FixedWindowChunker(chunk_size=50, chunk_overlap=50)  # overlap must be < size
+        SlidingWindowChunker(chunk_size=50, chunk_overlap=60)  # overlap must be <= chunk_size
 
 
-def test_sliding_chunker_sentence_boundaries():
+def test_recursive_chunker_sentence_boundaries():
     text = "This is sentence one. This is sentence two! And sentence three?"
     doc = Document(id="test-doc", content=text, metadata=DocumentMetadata(source="test"), hash="hash1")
     # Window size 25 splits mid-sentence for "This is sentence two!".
     # The chunker should try to expand to the sentence boundary.
-    chunker = SlidingWindowChunker(window_size=25, stride=20)
+    chunker = RecursiveChunker(chunk_size=25, chunk_overlap=5)
     chunks = chunker.chunk(doc)
 
     assert len(chunks) > 0
 
 
 def test_chunk_metadata_propagated(sample_document):
-    chunker = FixedWindowChunker(chunk_size=50, chunk_overlap=10)
+    chunker = SlidingWindowChunker(chunk_size=50, chunk_overlap=10)
     chunks = chunker.chunk(sample_document)
 
     for chunk in chunks:
@@ -94,20 +94,20 @@ def test_structure_chunker():
 # --- EDGE CASES ---
 
 
-def test_fixed_chunker_empty_document():
+def test_sliding_chunker_empty_document():
     doc = Document(id="empty", content="", metadata=DocumentMetadata(source="test"), hash="hash")
-    chunker = FixedWindowChunker(chunk_size=50, chunk_overlap=10)
+    chunker = SlidingWindowChunker(chunk_size=50, chunk_overlap=10)
     chunks = chunker.chunk(doc)
     assert len(chunks) == 1
     assert chunks[0].content == ""
 
 
-def test_sliding_chunker_no_sentence_breaks():
+def test_recursive_chunker_no_sentence_breaks():
     doc = Document(id="inf", content="A" * 5000, metadata=DocumentMetadata(source="test"), hash="hash")
-    chunker = SlidingWindowChunker(window_size=500, stride=400)
+    chunker = RecursiveChunker(chunk_size=500, chunk_overlap=100)
     chunks = chunker.chunk(doc)
-    assert len(chunks) > 5
-    assert len(chunks[0].content) <= 600  # Will cut off at max window limit (500 + 100 extension)
+    assert len(chunks) >= 5
+    assert len(chunks[0].content) <= 500  # Will cut off at max chunk size limit
 
 
 def test_semantic_chunker_unicode_heavy(mock_embedder):

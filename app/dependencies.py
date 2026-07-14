@@ -1,3 +1,29 @@
+"""
+Dependency Injection Container for DeepVault.
+
+This module is the single source of truth for all singleton instances.
+It acts as a lightweight service locator: callers ask for a service by
+calling the appropriate async factory function, and the factory either
+returns a cached instance or creates one on first call.
+
+Lifecycle:
+  - initialize_all()  — called at API startup (FastAPI lifespan)
+  - shutdown_all()    — called at API shutdown
+  - clear_cache()     — used in tests to reset state between runs
+
+Thread safety:
+  Concurrent requests could race during first initialization if two
+  requests hit a cold cache simultaneously. We use per-key asyncio.Lock
+  objects to ensure exactly-once initialization.
+
+Adding a new dependency:
+  1. Write the infrastructure class (implement the right ABC).
+  2. Add a factory function here following the _get_or_create pattern.
+  3. Wire it into the relevant service factory.
+  4. Add teardown logic in shutdown_all() if the class has .close().
+"""
+
+import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
@@ -9,14 +35,13 @@ from app.core.interfaces.reranker import BaseReranker
 from app.core.interfaces.retriever import BaseRetriever
 from app.core.interfaces.rewriter import BaseQueryRewriter
 from app.infrastructure.cache.redis import RedisCache
-from app.infrastructure.chunkers.fixed import FixedWindowChunker
+from app.infrastructure.chunkers.recursive import RecursiveChunker
 from app.infrastructure.chunkers.semantic import SemanticChunker
 from app.infrastructure.chunkers.sliding import SlidingWindowChunker
 from app.infrastructure.chunkers.structure import StructureChunker
-
-# Infrastructure Imports
 from app.infrastructure.embedders.bge import BgeEmbedder
 from app.infrastructure.llm.groq import GroqLLMClient
+from app.infrastructure.llm.router import LLMRouter
 from app.infrastructure.logging.structured import logger
 from app.infrastructure.query.classifier import QueryClassifier
 from app.infrastructure.query.decomposer import QueryDecomposer
@@ -26,94 +51,189 @@ from app.infrastructure.rerankers.cross_encoder import CrossEncoderReranker
 from app.infrastructure.retrievers.bm25 import BM25Retriever
 from app.infrastructure.retrievers.hybrid import HybridRetriever
 from app.infrastructure.retrievers.vector import VectorRetriever
+from app.infrastructure.stores.feedback import FeedbackStore
 from app.infrastructure.stores.qdrant import QdrantVectorStore
 from app.infrastructure.stores.sqlite import SqliteDocumentStore
+from app.services.ab_testing import ABTestingService
 from app.services.cache_service import CacheService
 from app.services.document import DocumentService
-
-# Service Imports
 from app.services.ingestion import IngestionService
 from app.services.query import QueryService
 
-# Global cache for singletons (The "Registry")
-_cache: dict[str, Any] = {"executor": ThreadPoolExecutor(max_workers=10, thread_name_prefix="dv_worker")}
+# ---------------------------------------------------------------------------
+# Singleton registry
+# ---------------------------------------------------------------------------
+
+_cache: dict[str, Any] = {
+    "executor": ThreadPoolExecutor(max_workers=10, thread_name_prefix="dv_worker")
+}
+
+# Per-key locks prevent double-initialization under concurrent first requests
+_locks: dict[str, asyncio.Lock] = {}
+
+
+def _get_lock(key: str) -> asyncio.Lock:
+    """Returns (creating if needed) the asyncio.Lock for a cache key."""
+    if key not in _locks:
+        _locks[key] = asyncio.Lock()
+    return _locks[key]
+
+
+# ---------------------------------------------------------------------------
+# Infrastructure factories
+# ---------------------------------------------------------------------------
 
 
 async def get_executor() -> ThreadPoolExecutor:
-    """Returns the shared thread pool for CPU-bound AI tasks."""
+    """Shared thread pool for CPU-bound AI tasks (embedding, chunking, reranking)."""
     return _cache["executor"]
 
 
 async def get_redis_cache() -> RedisCache:
-    if "redis_cache" not in _cache:
-        _cache["redis_cache"] = RedisCache()
-    return _cache["redis_cache"]
+    key = "redis_cache"
+    async with _get_lock(key):
+        if key not in _cache:
+            _cache[key] = RedisCache()
+    return _cache[key]
 
 
 async def get_cache_service() -> CacheService:
-    if "cache_service" not in _cache:
-        _cache["cache_service"] = CacheService(redis_cache=await get_redis_cache())
-    return _cache["cache_service"]
+    key = "cache_service"
+    async with _get_lock(key):
+        if key not in _cache:
+            _cache[key] = CacheService(redis_cache=await get_redis_cache())
+    return _cache[key]
 
 
 async def get_embedder() -> BgeEmbedder:
-    if "embedder" not in _cache:
-        _cache["embedder"] = BgeEmbedder(cache_service=await get_cache_service())
-    return _cache["embedder"]
+    key = "embedder"
+    async with _get_lock(key):
+        if key not in _cache:
+            _cache[key] = BgeEmbedder(cache_service=await get_cache_service())
+    return _cache[key]
 
 
-async def get_chunker(strategy: str | None = None) -> BaseChunker:
+async def get_chunker(
+    strategy: str | None = None,
+    chunk_size: int | None = None,
+    chunk_overlap: int | None = None,
+    **kwargs: Any,
+) -> BaseChunker:
+    """
+    Returns a chunker for the given strategy.
+
+    Each unique (strategy, size, overlap, **kwargs) combination gets its own
+    singleton so different ingestion passes can use different chunkers without
+    conflict.  For the semantic strategy the cache key also includes kwargs
+    like similarity_threshold so two calls with different thresholds don't
+    return the same cached chunker.
+    """
     effective_strategy = strategy or settings.CHUNKER_STRATEGY
-    cache_key = f"chunker_{effective_strategy}"
+    effective_size = chunk_size or settings.CHUNKER_SIZE
+    effective_overlap = chunk_overlap or settings.CHUNKER_OVERLAP
 
-    if cache_key not in _cache:
-        if effective_strategy == "sliding":
-            _cache[cache_key] = SlidingWindowChunker(
-                window_size=settings.CHUNKER_SIZE, stride=settings.CHUNKER_SIZE - settings.CHUNKER_OVERLAP
-            )
-        elif effective_strategy == "semantic":
-            embedder = await get_embedder()
-            _cache[cache_key] = SemanticChunker(
-                embedder=embedder, similarity_threshold=settings.SEMANTIC_SIMILARITY_THRESHOLD
-            )
-        elif effective_strategy == "structure":
-            _cache[cache_key] = StructureChunker(
-                max_section_size=1500,
-                fallback_chunk_size=settings.CHUNKER_SIZE,
-                fallback_overlap=settings.CHUNKER_OVERLAP,
-            )
-        else:
-            _cache[cache_key] = FixedWindowChunker(
-                chunk_size=settings.CHUNKER_SIZE, chunk_overlap=settings.CHUNKER_OVERLAP
-            )
+    # Include strategy-specific kwargs in the cache key to prevent collisions
+    # (e.g. two semantic chunkers with different similarity_threshold values)
+    kwargs_suffix = "_".join(f"{k}={v}" for k, v in sorted(kwargs.items())) if kwargs else ""
+    key = f"chunker_{effective_strategy}_{effective_size}_{effective_overlap}_{kwargs_suffix}"
 
-        # Normalize the strategy name for consistent metadata tracking
-        _cache[cache_key].strategy_name = effective_strategy
+    async with _get_lock(key):
+        if key not in _cache:
+            if effective_strategy == "recursive":
+                _cache[key] = RecursiveChunker(
+                    chunk_size=effective_size,
+                    chunk_overlap=effective_overlap,
+                )
+            elif effective_strategy == "semantic":
+                _cache[key] = SemanticChunker(
+                    embedder=await get_embedder(),
+                    similarity_threshold=kwargs.get("similarity_threshold", settings.SEMANTIC_SIMILARITY_THRESHOLD),
+                    min_chunk_size=kwargs.get("min_chunk_size", 100),
+                    max_chunk_size=kwargs.get("max_chunk_size", 1500),
+                )
+            elif effective_strategy == "structure":
+                _cache[key] = StructureChunker(
+                    max_section_size=1500,
+                    fallback_chunk_size=effective_size,
+                    fallback_overlap=effective_overlap,
+                )
+            else:  # "sliding" or unknown → fallback to sliding
+                _cache[key] = SlidingWindowChunker(
+                    chunk_size=effective_size,
+                    chunk_overlap=effective_overlap,
+                )
+            # Tag the chunker so IngestionService can record the strategy
+            # in metadata without needing to know which class was chosen.
+            _cache[key].strategy_name = effective_strategy
 
-    return _cache[cache_key]
+    return _cache[key]
 
 
 async def get_doc_store() -> SqliteDocumentStore:
-    if "doc_store" not in _cache:
-        _cache["doc_store"] = SqliteDocumentStore(settings.SQLITE_DB_PATH)
-    return _cache["doc_store"]
+    key = "doc_store"
+    async with _get_lock(key):
+        if key not in _cache:
+            _cache[key] = SqliteDocumentStore(settings.SQLITE_DB_PATH)
+    return _cache[key]
+
+
+async def get_feedback_store() -> FeedbackStore:
+    """
+    Singleton FeedbackStore.
+
+    FeedbackStore opens a SQLite connection on every operation, so it is
+    cheap to reuse the same instance. Keeping it as a singleton avoids
+    re-running table-creation migrations on every HTTP request.
+    """
+    key = "feedback_store"
+    async with _get_lock(key):
+        if key not in _cache:
+            store = FeedbackStore()
+            await store.initialize()
+            _cache[key] = store
+    return _cache[key]
+
+
+async def get_ab_testing_service() -> ABTestingService:
+    """
+    Singleton ABTestingService.
+
+    Same rationale as FeedbackStore — avoids re-running CREATE TABLE
+    migrations on every HTTP request.
+    """
+    key = "ab_testing_service"
+    async with _get_lock(key):
+        if key not in _cache:
+            service = ABTestingService()
+            await service.initialize()
+            _cache[key] = service
+    return _cache[key]
 
 
 async def get_qdrant_client() -> AsyncQdrantClient:
-    """Singleton for the shared Qdrant connection pool."""
-    if "qdrant_client" not in _cache:
-        if settings.QDRANT_HOST and settings.QDRANT_HOST != "local":
-            url = f"http://{settings.QDRANT_HOST}:{settings.QDRANT_PORT}"
-            _cache["qdrant_client"] = AsyncQdrantClient(url=url)
-        else:
-            _cache["qdrant_client"] = AsyncQdrantClient(path="qdrant_storage")
+    """
+    Shared Qdrant connection pool.
 
-    # 🕵️ Security Safety: Ensure the client wasn't closed by a previous pass
-    client = _cache["qdrant_client"]
+    Qdrant's AsyncQdrantClient manages connection pooling internally, so a
+    single instance shared across all requests is both safe and efficient.
+    The local fallback (QDRANT_HOST == "local") uses an on-disk store at
+    qdrant_storage/ without requiring Docker.
+    """
+    key = "qdrant_client"
+    async with _get_lock(key):
+        if key not in _cache:
+            if settings.QDRANT_HOST and settings.QDRANT_HOST != "local":
+                url = f"http://{settings.QDRANT_HOST}:{settings.QDRANT_PORT}"
+                _cache[key] = AsyncQdrantClient(url=url)
+            else:
+                _cache[key] = AsyncQdrantClient(path="qdrant_storage")
+
+    # Safety guard: detect if the cached client was closed externally
+    client: AsyncQdrantClient = _cache[key]
     try:
         if hasattr(client, "_client") and hasattr(client._client, "is_closed") and client._client.is_closed:
-            logger.warning("Detected closed Qdrant client in cache. Re-initializing.")
-            del _cache["qdrant_client"]
+            logger.warning("Detected closed Qdrant client in cache — re-initializing.")
+            del _cache[key]
             return await get_qdrant_client()
     except Exception:
         pass
@@ -123,107 +243,153 @@ async def get_qdrant_client() -> AsyncQdrantClient:
 
 async def get_vector_store(strategy: str | None = None) -> QdrantVectorStore:
     """
-    Factory for Qdrant storage.
-    Supports JIT (Just-In-Time) initialization of strategy-specific collections.
+    Returns the Qdrant vector store for a given chunking strategy.
+
+    Each strategy (fixed, sliding, structure, semantic) has its own isolated
+    Qdrant collection (deepvault_{strategy}) so benchmark runs across
+    strategies don't contaminate each other's results.
+
+    JIT initialization: the collection is created if it doesn't exist yet.
+    This adds ~10ms on the very first call per strategy.
     """
-    # 1. Determine the exact collection namespace
     effective_strategy = strategy or settings.CHUNKER_STRATEGY
     collection = f"deepvault_{effective_strategy}"
-    cache_key = f"vstore_{collection}"
+    key = f"vstore_{collection}"
 
-    if cache_key not in _cache:
-        client = await get_qdrant_client()
-        embedder = await get_embedder()
+    async with _get_lock(key):
+        if key not in _cache:
+            client = await get_qdrant_client()
+            embedder = await get_embedder()
+            vstore = QdrantVectorStore(collection_name=collection, client=client)
+            await vstore.initialize(vector_size=embedder.get_dimension())
+            _cache[key] = vstore
 
-        # 2. Instantiate the store with the shared client
-        vstore = QdrantVectorStore(collection_name=collection, client=client)
-
-        # 3. JIT Initialization (Ensures the collection exists with right dims)
-        # This only adds ~10ms overhead after the first call per strategy
-        await vstore.initialize(vector_size=embedder.get_dimension())
-
-        _cache[cache_key] = vstore
-
-    return _cache[cache_key]
+    return _cache[key]
 
 
 async def get_llm_client() -> GroqLLMClient:
-    if "llm_client" not in _cache:
-        _cache["llm_client"] = GroqLLMClient()
-    return _cache["llm_client"]
+    key = "llm_client"
+    async with _get_lock(key):
+        if key not in _cache:
+            _cache[key] = GroqLLMClient()
+    return _cache[key]
+
+
+async def get_bm25_retriever() -> BM25Retriever:
+    key = "bm25_retriever"
+    async with _get_lock(key):
+        if key not in _cache:
+            _cache[key] = BM25Retriever(qdrant_client=await get_qdrant_client())
+    return _cache[key]
 
 
 async def get_retriever(strategy: str | None = None) -> BaseRetriever:
     """
-    Factory that resolves the retrieval engine (Vector, BM25, or Hybrid).
+    Returns the retrieval engine for the given strategy.
+
+    Strategy resolution:
+      - "vector"         → pure Qdrant cosine similarity search
+      - "bm25"           → pure BM25 keyword search (rank-bm25)
+      - "hybrid"         → BM25 + Vector merged with Reciprocal Rank Fusion
+      - "hybrid_rerank"  → hybrid + Cross-Encoder reranking
     """
     effective_strategy = strategy or settings.RETRIEVAL_STRATEGY
 
-    if effective_strategy == "hybrid" or effective_strategy == "hybrid_rerank":
-        if "hybrid_retriever" not in _cache:
-            v_retriever = VectorRetriever(embedder=await get_embedder(), vector_store=await get_vector_store())
-            b_retriever = await get_bm25_retriever()
-            _cache["hybrid_retriever"] = HybridRetriever(vector_retriever=v_retriever, bm25_retriever=b_retriever)
-        return _cache["hybrid_retriever"]
+    if effective_strategy in ("hybrid", "hybrid_rerank"):
+        key = "hybrid_retriever"
+        async with _get_lock(key):
+            if key not in _cache:
+                v_retriever = VectorRetriever(embedder=await get_embedder(), vector_store=await get_vector_store())
+                b_retriever = await get_bm25_retriever()
+                _cache[key] = HybridRetriever(vector_retriever=v_retriever, bm25_retriever=b_retriever)
+        return _cache[key]
 
-    elif effective_strategy == "bm25":
+    if effective_strategy == "bm25":
         return await get_bm25_retriever()
 
-    else:  # Default to Vector
-        if "retriever" not in _cache:
-            embedder = await get_embedder()
-            vstore = await get_vector_store()
-            _cache["retriever"] = VectorRetriever(embedder=embedder, vector_store=vstore)
-        return _cache["retriever"]
-
-
-async def get_bm25_retriever() -> BM25Retriever:
-    if "bm25_retriever" not in _cache:
-        _cache["bm25_retriever"] = BM25Retriever(qdrant_client=await get_qdrant_client())
-    return _cache["bm25_retriever"]
+    # Default: vector-only
+    key = "vector_retriever"
+    async with _get_lock(key):
+        if key not in _cache:
+            _cache[key] = VectorRetriever(embedder=await get_embedder(), vector_store=await get_vector_store())
+    return _cache[key]
 
 
 async def get_reranker() -> BaseReranker:
-    if "reranker" not in _cache:
-        _cache["reranker"] = CrossEncoderReranker()
-    return _cache["reranker"]
+    key = "reranker"
+    async with _get_lock(key):
+        if key not in _cache:
+            _cache[key] = CrossEncoderReranker()
+    return _cache[key]
 
 
 async def get_query_rewriter() -> BaseQueryRewriter:
-    if "query_rewriter" not in _cache:
-        llm_client = await get_llm_client()
-        _cache["query_rewriter"] = GroqQueryRewriter(llm_client=llm_client)
-    return _cache["query_rewriter"]
+    key = "query_rewriter"
+    async with _get_lock(key):
+        if key not in _cache:
+            _cache[key] = GroqQueryRewriter(llm_client=await get_llm_client())
+    return _cache[key]
 
 
-# --- SERVICE BUILDERS ---
-# These are what the actual API routes will call
+async def get_query_router() -> QueryRouter:
+    key = "query_router"
+    async with _get_lock(key):
+        if key not in _cache:
+            _cache[key] = QueryRouter(classifier=QueryClassifier())
+    return _cache[key]
 
 
-async def get_ingestion_service(strategy: str | None = None) -> IngestionService:
+async def get_query_decomposer() -> QueryDecomposer:
+    key = "query_decomposer"
+    async with _get_lock(key):
+        if key not in _cache:
+            _cache[key] = QueryDecomposer(llm_client=await get_llm_client())
+    return _cache[key]
+
+
+async def get_llm_router() -> LLMRouter:
+    key = "llm_router"
+    async with _get_lock(key):
+        if key not in _cache:
+            _cache[key] = LLMRouter()
+    return _cache[key]
+
+
+# ---------------------------------------------------------------------------
+# Service factories
+# These are what route handlers call via FastAPI's Depends() system.
+# ---------------------------------------------------------------------------
+
+
+async def get_ingestion_service(
+    strategy: str | None = None,
+    chunk_size: int | None = None,
+    chunk_overlap: int | None = None,
+    **kwargs: Any,
+) -> IngestionService:
+    """
+    Returns an IngestionService wired to the given chunking strategy.
+
+    NOTE: IngestionService is NOT cached — it is lightweight and the
+    strategy parameters can differ per request.
+    """
     return IngestionService(
-        chunker=await get_chunker(strategy=strategy),
+        chunker=await get_chunker(
+            strategy=strategy, chunk_size=chunk_size, chunk_overlap=chunk_overlap, **kwargs
+        ),
         embedder=await get_embedder(),
         doc_store=await get_doc_store(),
         vector_store=await get_vector_store(strategy=strategy),
     )
 
 
-async def get_query_router() -> QueryRouter:
-    if "query_router" not in _cache:
-        _cache["query_router"] = QueryRouter(classifier=QueryClassifier())
-    return _cache["query_router"]
-
-
-async def get_query_decomposer() -> QueryDecomposer:
-    if "query_decomposer" not in _cache:
-        llm_client = await get_llm_client()
-        _cache["query_decomposer"] = QueryDecomposer(llm_client=llm_client)
-    return _cache["query_decomposer"]
-
-
 async def get_query_service() -> QueryService:
-    # Resolve reranker ONLY if the strategy demands it to save memory for vector-only users
+    """
+    Returns the main RAG query service, pre-wired with all optional components.
+
+    The reranker is only loaded into memory when the retrieval strategy
+    actually requires it — saves ~100MB RAM for vector-only deployments.
+    """
     reranker = None
     if settings.RETRIEVAL_STRATEGY in ("hybrid_rerank", "auto"):
         reranker = await get_reranker()
@@ -236,6 +402,7 @@ async def get_query_service() -> QueryService:
         rewriter=await get_query_rewriter(),
         router=await get_query_router(),
         decomposer=await get_query_decomposer(),
+        llm_router=await get_llm_router(),
     )
 
 
@@ -243,37 +410,40 @@ async def get_document_service() -> DocumentService:
     return DocumentService(doc_store=await get_doc_store(), vector_store=await get_vector_store())
 
 
-# --- LIFECYCLE MANAGEMENT ---
+# ---------------------------------------------------------------------------
+# Lifecycle management
+# ---------------------------------------------------------------------------
 
 
-async def initialize_all():
-    """Starts up core infrastructure connections (Called at API start)."""
-    logger.info("Initializing DeepVault core backbone...")
+async def initialize_all() -> None:
+    """
+    Warm up all core infrastructure connections at API startup.
 
-    # 1. Warm up core infrastructure (Synchronous dependencies)
+    Called by the FastAPI lifespan handler. Pre-warming avoids cold-start
+    latency on the first real request.
+    """
+    logger.info("Initializing DeepVault core infrastructure...")
+
     doc_store = await get_doc_store()
     redis_cache = await get_redis_cache()
 
     await doc_store.initialize()
     await redis_cache.initialize()
 
-    # 2. Warm up the shared Qdrant connection pool
     await get_qdrant_client()
+    await get_vector_store()    # Create default strategy collection if missing
 
-    # 3. Warm up the default strategy
-    await get_vector_store()
-
-    logger.info("DeepVault core ready. Background workers initialized.")
+    logger.info("DeepVault core ready.")
 
 
-async def shutdown_all():
-    """Safely closes all database connections (Called at API stop)."""
+async def shutdown_all() -> None:
+    """Gracefully close all persistent connections at API shutdown."""
     logger.info("Shutting down DeepVault dependencies...")
 
     if "qdrant_client" in _cache:
         await _cache["qdrant_client"].close()
         del _cache["qdrant_client"]
-        logger.info("Closed and released Qdrant connection pool.")
+        logger.info("Qdrant connection pool closed.")
 
     if "doc_store" in _cache:
         await _cache["doc_store"].close()
@@ -282,17 +452,28 @@ async def shutdown_all():
 
     if "executor" in _cache:
         _cache["executor"].shutdown(wait=False)
-        logger.info("Compute workers released.")
+        logger.info("Thread pool released.")
 
     clear_cache()
     logger.info("Shutdown complete.")
 
 
-def clear_cache():
-    """Manually resets singleton cache - useful for multi-pass seating/testing."""
-    # Note: We preserve the executor to avoid thread-leakage during reloads
-    temp_executor = _cache.get("executor")
+def clear_cache() -> None:
+    """
+    Resets the singleton cache.
+
+    Preserves long-lived infrastructure connections (executor, qdrant_client,
+    doc_store, redis_cache, cache_service, embedder) to avoid connection churn
+    and thread leakage when running multiple ingestion passes in sequence.
+    """
+    # Keys that represent live connections or heavy resources we don't want
+    # to recreate on every pass.  Everything else (chunkers, vector stores,
+    # services, retrievers) gets evicted so the next factory call builds
+    # fresh instances with the new strategy parameters.
+    PRESERVE_KEYS = {"executor", "qdrant_client", "doc_store", "redis_cache", "cache_service", "embedder"}
+
+    preserved = {k: _cache[k] for k in PRESERVE_KEYS if k in _cache}
     _cache.clear()
-    if temp_executor:
-        _cache["executor"] = temp_executor
-    logger.info("Dependency cache cleared.")
+    _locks.clear()
+    _cache.update(preserved)
+    logger.info("Dependency cache cleared.", extra={"extra_fields": {"preserved": list(preserved.keys())}})

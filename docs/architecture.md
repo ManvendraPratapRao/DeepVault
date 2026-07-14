@@ -1,18 +1,18 @@
 # DeepVault Architecture
 
-DeepVault follows a **Hexagonal (Ports and Adapters)** architecture. Business logic depends only on abstract interfaces, and concrete implementations are injected at runtime.
+DeepVault follows a **Hexagonal (Ports and Adapters)** architecture. Business logic depends only on abstract interfaces, and concrete implementations are injected at runtime. This decoupled approach allows us to swap underlying infrastructure (e.g., migrating from Qdrant to Pinecone or Groq to OpenAI) without changing a single line of business logic.
 
 ## Layer Overview
 
 | Layer | Path | Responsibility |
 |-------|------|---------------|
 | **API** | `app/api/` | HTTP routing, request validation, response serialization, middleware |
-| **Services** | `app/services/` | Business logic orchestration (ingestion, query, document management) |
+| **Services** | `app/services/` | Business logic orchestration (ingestion, query pipeline, document management) |
 | **Core** | `app/core/` | Domain models, abstract interfaces (ABCs), custom exceptions |
 | **Infrastructure** | `app/infrastructure/` | Concrete implementations (Qdrant, Groq, Redis, SQLite, BGE embedder) |
 | **Prompts** | `app/prompts/` | Versioned prompt templates for RAG and evaluation |
 
-## Component Diagram (Phase 2)
+## Component Diagram (Phase 4)
 
 ```mermaid
 graph TD
@@ -40,15 +40,12 @@ graph TD
     end
 
     subgraph "Infrastructure Layer (Adapters)"
-        CH --> C1[FixedWindowChunker]
-        CH --> C2[SlidingWindowChunker]
-        CH --> C3[StructureChunker]
-        CH --> C4[SemanticChunker]
+        CH --> C1[SlidingWindowChunker]
+        CH --> C2[SemanticChunker]
         RT --> VR[VectorRetriever]
         RT --> BM25[BM25Retriever]
         RT --> HY[HybridRetriever ← VR + BM25]
         RNK --> CE[CrossEncoderReranker]
-        RW --> GQR[GroqQueryRewriter]
         LLM --> GR[GroqLLMClient]
         EM --> BGE[BgeEmbedder]
         VS --> QD[(Qdrant)]
@@ -68,50 +65,42 @@ File/Text → Hash Check → Chunker → Embedder → Qdrant (vectors) + SQLite 
 - Embeddings are computed in batch via the BGE model.
 - Storage uses an inverted write strategy: vectors are written first, then metadata. If metadata storage fails, orphaned vectors are cleaned up from Qdrant.
 
-### Query Pipeline (Phase 2)
+### Query Pipeline (Phase 4)
 
-**Strategy: `vector` (default)**
-```
-Question → [Cache Check] → [Query Rewriter?] → Embed Query → Qdrant Vector Search → Build Prompt → LLM → [Cache] → Return
-```
+For an in-depth walkthrough of the query intelligence features, see [query_pipeline.md](query_pipeline.md).
 
-**Strategy: `hybrid`**
+**Strategy: `auto` (Default)**
 ```
-Question → [Cache Check] → [Query Rewriter?] → Parallel(Vector Search, BM25 Search) → RRF Fusion → Build Prompt → LLM → [Cache] → Return
-```
-
-**Strategy: `hybrid_rerank`**
-```
-Question → [Cache Check] → [Query Rewriter?] → Parallel(Vector Search × 4, BM25 × 4) → RRF Fusion → CrossEncoder(top-20 → top-5) → Build Prompt → LLM → [Cache] → Return
+Question → [Cache Check] → QueryRouter (Classifier)
+   ├─ Factual → Hybrid Search (BM25 + Vector)
+   ├─ Semantic → Vector Search
+   └─ Complex → QueryDecomposer → Parallel Retrieval (Subqueries) → Merge
+          ↓
+[Reranker] → Context Confidence Guard
+          ↓
+LLMRouter (Select 8b vs 70b) → Prompt Construction → LLM Generation → [Cache] → Return
 ```
 
 - All strategies check the Redis cache first (hash-exact match).
-- Query rewriting is opt-in per request via `use_query_rewriting=true`.
-- Retrieved chunks include source filename and chunk index for citation.
-- The LLM response includes token usage telemetry for cost tracking.
+- The `QueryRouter` selects the optimal path.
+- The **Context Confidence Guard** prevents hallucinations by ensuring the top matching chunk has a sufficient cosine similarity score.
+- The response is streamed via SSE for real-time UI updates (`/stream`).
 
 ## Dependency Injection
 
-All services receive their dependencies via constructor injection. The `app/dependencies.py` module acts as a service locator, building and caching singleton instances:
+All services receive their dependencies via constructor injection. The `app/dependencies.py` module acts as a service locator, building and caching singleton instances via an `asyncio.Lock` to ensure thread-safety on startup:
 
 ```python
 async def get_query_service() -> QueryService:
     return QueryService(
-        retriever=await get_retriever(),       # Vector, BM25, or Hybrid
+        retriever=await get_retriever(),
         llm_client=await get_llm_client(),
         cache_service=await get_cache_service(),
-        reranker=await get_reranker(),         # Only if hybrid_rerank
-        rewriter=await get_query_rewriter(),
+        reranker=await get_reranker(),
+        router=await get_query_router(),
+        decomposer=await get_query_decomposer(),
+        llm_router=await get_llm_router()
     )
 ```
 
-This makes testing straightforward — each service can be instantiated with mock dependencies.
-
-## Further Reading
-
-- [Phase 2 Retrieval Architecture](architecture/phase2-retrieval-architecture.md)
-- [ADR-006: BM25 Keyword Retrieval](adrs/006-bm25-keyword-retrieval.md)
-- [ADR-007: RRF Fusion Strategy](adrs/007-rrf-fusion-strategy.md)
-- [ADR-008: Cross-Encoder Reranker](adrs/008-cross-encoder-reranker.md)
-- [Benchmark v2.0.0: Phase 2 Results](benchmarks/v2.0.0.md)
-
+This makes testing straightforward — each service can be instantiated with mock dependencies, and the singletons ensure we don't accidentally spin up multiple Qdrant connection pools.

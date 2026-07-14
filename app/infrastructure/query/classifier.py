@@ -62,12 +62,11 @@ _FACTUAL_PATTERNS = [
 ]
 
 _COMPLEX_PATTERNS = [
-    r"\band\b.+\band\b",            # Multiple conjunctions → multi-part
-    r"\?.*\?",                       # Multiple question marks in query
-    r"\bfirst\b.+\bthen\b",         # Sequential reasoning
+    r"\band\b.+\band\b",  # Multiple conjunctions → multi-part
+    r"\?.*\?",  # Multiple question marks in query
+    r"\bfirst\b.+\bthen\b",  # Sequential reasoning
     r"\bstep[s]?\b",
     r"\bbreakdown\b",
-    r"\banalyze\b",
     r"\banalyze\b",
     r"\bin what (ways?|circumstances?)\b",
     r"\bunder what conditions?\b",
@@ -137,7 +136,9 @@ class QueryClassifier:
         # --- 2. Complex (multi-part or analytically heavy) ---
         word_count = _count_words(q)
         is_long = word_count > 20
-        has_multiple_conjunctions = len(re.findall(r"\b(and|also|additionally|furthermore|moreover)\b", q, re.IGNORECASE)) >= 2
+        has_multiple_conjunctions = (
+            len(re.findall(r"\b(and|also|additionally|furthermore|moreover)\b", q, re.IGNORECASE)) >= 2
+        )
 
         if _matches(q, _COMPLEX_PATTERNS) or (is_long and has_multiple_conjunctions):
             logger.debug(f"Query classified as COMPLEX: '{q[:60]}' ({word_count} words)")

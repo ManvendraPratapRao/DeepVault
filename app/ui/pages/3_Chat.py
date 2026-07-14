@@ -8,9 +8,12 @@ Uses httpx with streaming to consume the Server-Sent Events stream.
 """
 
 import time
+import uuid
 
 import httpx
 import streamlit as st
+
+from app.ui.utils.chat_storage import delete_session, get_recent_sessions, load_session, save_session
 
 # ---------------------------------------------------------------------------
 # Page Config
@@ -62,45 +65,104 @@ st.markdown(
 # Header
 # ---------------------------------------------------------------------------
 
-st.title("💬 DeepVault Chat")
-st.caption(
-    "Streaming RAG answers powered by Groq Llama-3.3-70b. "
-    "Tokens appear as they are generated — no waiting."
-)
-st.divider()
+st.title("💬 Chat with DeepVault")
+st.caption("Ask questions and get answers grounded in your ingested documents.")
+
+# --- Session Initialization ---
+if "session_id" not in st.session_state:
+    st.session_state.session_id = str(uuid.uuid4())
+if "chat_mode" not in st.session_state:
+    st.session_state.chat_mode = "Regular"
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+# Function to start a new chat
+def start_new_chat():
+    st.session_state.session_id = str(uuid.uuid4())
+    st.session_state.messages = []
 
 # ---------------------------------------------------------------------------
 # Sidebar: Configuration
 # ---------------------------------------------------------------------------
 
 with st.sidebar:
-    st.header("⚙️ Session Settings")
-
+    st.header("Chat Settings")
+    st.session_state.chat_mode = st.radio(
+        "Chat Mode", 
+        ["Regular", "Temporary"], 
+        index=0 if st.session_state.chat_mode == "Regular" else 1,
+        help="Regular chats are saved (up to 5). Temporary chats disappear on refresh."
+    )
+    
     API_URL = st.text_input("API Endpoint", value="http://localhost:8000")
     API_KEY = st.text_input("API Token", value="deepvault_secret_key", type="password")
 
     st.divider()
+    model_selection = st.selectbox(
+        "LLM Model",
+        ["Auto (Router Selected)", "groq/llama-3.1-8b-instant", "groq/llama-3.3-70b-versatile", "groq/qwen/qwen3-32b"],
+        index=0,
+        help="Choose Auto to let the system pick the cheapest capable model based on query complexity."
+    )
+    # If "Auto" is chosen, pass None so the backend LLMRouter activates
+    model_name = None if model_selection == "Auto (Router Selected)" else model_selection
+    
+    st.divider()
     st.subheader("Retrieval Settings")
 
-    chunking_strategy = st.selectbox(
-        "Chunking Strategy",
-        ["fixed", "sliding", "structure", "semantic"],
-        index=0,
-    ) or "fixed"
+    chunking_strategy = (
+        st.selectbox(
+            "Chunking Strategy",
+            ["sliding", "recursive", "structure", "semantic"],
+            index=0,
+        )
+        or "sliding"
+    )
 
-    retrieval_strategy = st.selectbox(
-        "Retrieval Strategy",
-        ["vector", "hybrid", "hybrid_rerank"],
-        index=1,
-    ) or "hybrid"
+    retrieval_strategy = (
+        st.selectbox(
+            "Retrieval Strategy",
+            ["auto", "auto_rewrite", "vector", "vector_rewrite", "hybrid", "hybrid_rewrite", "hybrid_rerank", "hybrid_rerank_rewrite"],
+            index=1,
+            help="Choose 'auto' to let the system intelligently route your query to the best strategy."
+        )
+        or "auto_rewrite"
+    )
 
     top_k = st.slider("Top-K Documents", min_value=1, max_value=15, value=5)
-    use_rewriting = st.checkbox("Query Rewriting (Groq)", value=False)
+    use_rewriting = "_rewrite" in retrieval_strategy
 
     st.divider()
-    if st.button("🗑️ Clear Chat History", use_container_width=True):
-        st.session_state.messages = []
+    
+    # Chat History Sidebar
+    st.subheader("Chat History")
+    if st.button("➕ New Chat", use_container_width=True):
+        start_new_chat()
         st.rerun()
+        
+    recent_sessions = get_recent_sessions(limit=5)
+    if recent_sessions:
+        st.write("Recent Chats:")
+        for s in recent_sessions:
+            c1, c2 = st.columns([4, 1])
+            with c1:
+                # If it's the current session, show differently
+                is_active = (s["session_id"] == st.session_state.session_id)
+                btn_label = f"💬 {s['title']}" if not is_active else f"🟢 {s['title']}"
+                if st.button(btn_label, key=f"load_{s['session_id']}", use_container_width=True):
+                    st.session_state.session_id = s["session_id"]
+                    loaded = load_session(s["session_id"])
+                    if loaded:
+                        st.session_state.messages = loaded.get("messages", [])
+                    st.rerun()
+            with c2:
+                if st.button("🗑️", key=f"del_{s['session_id']}", help="Delete chat"):
+                    delete_session(s["session_id"])
+                    if is_active:
+                        start_new_chat()
+                    st.rerun()
+    else:
+        st.info("No saved chats.")
 
     st.divider()
     st.markdown(
@@ -108,8 +170,6 @@ with st.sidebar:
         f"**Top-K:** {top_k}  |  **Rewrite:** {'✅' if use_rewriting else '❌'}"
     )
 
-# ---------------------------------------------------------------------------
-# Chat State Init
 # ---------------------------------------------------------------------------
 
 if "messages" not in st.session_state:
@@ -136,7 +196,9 @@ if prompt := st.chat_input("Ask anything about your documents…"):
     # Stream the assistant response
     with st.chat_message("assistant"):
         response_placeholder = st.empty()
+        sources_placeholder = st.empty()
         full_response = ""
+        sources = []
         start_ts = time.perf_counter()
         error_occurred = False
 
@@ -144,8 +206,14 @@ if prompt := st.chat_input("Ask anything about your documents…"):
             "query_text": prompt,
             "top_k": top_k,
             "chunking_strategy": chunking_strategy,
-            "retrieval_strategy": retrieval_strategy,
+            "retrieval_strategy": retrieval_strategy.replace("_rewrite", ""),
             "use_query_rewriting": use_rewriting,
+            "model_name": model_name,
+            # Pass all previous messages for multi-turn context (excluding system prompts if any)
+            "messages": [
+                {"role": m["role"], "content": m["content"]}
+                for m in st.session_state.messages[:-1] # exclude the prompt we just added
+            ],
         }
 
         try:
@@ -177,6 +245,14 @@ if prompt := st.chat_input("Ask anything about your documents…"):
                                     st.error(f"❌ {token}")
                                     error_occurred = True
                                     break
+                                    
+                                if token.startswith("[SOURCES] "):
+                                    import json
+                                    try:
+                                        sources = json.loads(token[10:])
+                                    except:
+                                        pass
+                                    continue
 
                                 full_response += token
                                 # Render with blinking cursor
@@ -187,8 +263,7 @@ if prompt := st.chat_input("Ask anything about your documents…"):
 
         except httpx.ConnectError:
             st.error(
-                f"❌ Cannot connect to API at `{API_URL}`. "
-                "Make sure `make dev` or `docker compose up` is running."
+                f"❌ Cannot connect to API at `{API_URL}`. Make sure `make dev` or `docker compose up` is running."
             )
             error_occurred = True
         except Exception as e:
@@ -199,15 +274,40 @@ if prompt := st.chat_input("Ask anything about your documents…"):
         if not error_occurred and full_response:
             latency = (time.perf_counter() - start_ts) * 1000
             response_placeholder.markdown(full_response)
+            
+            # Render sources
+            if sources:
+                with sources_placeholder.container():
+                    for idx, src in enumerate(sources):
+                        score_str = f" (Score: {src.get('score'):.3f})" if src.get("score") else ""
+                        with st.expander(f"📄 Source {idx+1}: {src.get('source', 'Unknown')}{score_str}"):
+                            st.markdown(f"<div class='source-box'>{src.get('content', '')[:500]}...</div>", unsafe_allow_html=True)
 
             # Metadata footer
             st.caption(
                 f"⚡ `{latency:.0f}ms` · "
                 f"<span class='badge'>{retrieval_strategy}</span>"
-                f"<span class='badge'>{chunking_strategy}</span>",
+                f"<span class='badge'>{chunking_strategy}</span>"
+                f"<span class='badge'>{(model_name or 'Auto').split('/')[-1]}</span>",
                 unsafe_allow_html=True,
             )
+            
+            # Simulated Human Feedback Buttons
+            col1, col2, _ = st.columns([1, 1, 10])
+            with col1:
+                if st.button("👍", key=f"up_{len(st.session_state.messages)}"):
+                    st.toast("Feedback recorded!")
+            with col2:
+                if st.button("👎", key=f"down_{len(st.session_state.messages)}"):
+                    st.toast("Feedback recorded!")
 
     # Save to history only if we got a real response
     if not error_occurred and full_response:
         st.session_state.messages.append({"role": "assistant", "content": full_response})
+        
+        # Save session to persistent storage if in Regular mode
+        if st.session_state.chat_mode == "Regular":
+            # Generate a title from the first query if it's the first exchange
+            first_msg = next((m["content"] for m in st.session_state.messages if m["role"] == "user"), "Chat")
+            title = first_msg[:25] + "..." if len(first_msg) > 25 else first_msg
+            save_session(st.session_state.session_id, title, st.session_state.messages)

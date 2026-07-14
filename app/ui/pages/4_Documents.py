@@ -81,7 +81,9 @@ with tab_ingest:
     st.subheader("Ingest New Document")
 
     with st.form("ingest_form"):
-        source_name = st.text_input("Document Source Name", placeholder="my_paper.md", help="A unique identifier for this document")
+        source_name = st.text_input(
+            "Document Source Name", placeholder="my_paper.md", help="A unique identifier for this document"
+        )
         content = st.text_area(
             "Document Content",
             height=300,
@@ -90,7 +92,7 @@ with tab_ingest:
         )
         chunker = st.selectbox(
             "Chunking Strategy",
-            options=["fixed", "sliding", "structure", "semantic"],
+            options=["sliding", "recursive", "structure", "semantic"],
             help="Which strategy to use for splitting this document into chunks",
         )
         submitted = st.form_submit_button("🚀 Ingest Document", use_container_width=True, type="primary")
@@ -101,8 +103,9 @@ with tab_ingest:
             elif not content.strip():
                 st.error("Please provide document content.")
             else:
-                with st.spinner(f"Ingesting '{source_name}' with {chunker} chunking..."):
+                with st.status(f"Ingesting '{source_name}' with {chunker} chunking...", expanded=True) as status:
                     try:
+                        st.write("Initializing chunker models...")
                         resp = requests.post(
                             f"{API_BASE}/documents/text",
                             json={"source": source_name, "content": content, "chunking_strategy": chunker},
@@ -111,12 +114,21 @@ with tab_ingest:
                         )
                         if resp.status_code == 200:
                             result = resp.json()
-                            st.success(f"✅ Ingested! Created **{result.get('chunk_count', '?')}** chunks from `{source_name}`")
+                            status.update(label=f"✅ Successfully created {result.get('chunk_count', '?')} chunks!", state="complete", expanded=False)
+                            st.success(
+                                f"Created **{result.get('chunk_count', '?')}** chunks from `{source_name}`"
+                            )
+                            st.balloons()
                         elif resp.status_code == 409:
-                            st.warning(f"⚠️ Document `{source_name}` already exists (duplicate detected by content hash).")
+                            status.update(label="Duplicate detected", state="error", expanded=False)
+                            st.warning(
+                                f"⚠️ Document `{source_name}` already exists (duplicate detected by content hash)."
+                            )
                         else:
+                            status.update(label="Ingestion failed", state="error", expanded=False)
                             st.error(f"Ingestion failed: {resp.status_code} — {resp.text[:200]}")
                     except requests.exceptions.ConnectionError:
+                        status.update(label="Connection Error", state="error", expanded=False)
                         st.error("Cannot connect to the API.")
 
 
@@ -125,7 +137,7 @@ with tab_stats:
     st.subheader("Collection Statistics")
     st.caption("Document counts and chunk sizes across all 4 chunking strategy collections.")
 
-    strategies = ["fixed", "sliding", "structure", "semantic"]
+    strategies = ["sliding", "recursive", "structure", "semantic"]
     cols = st.columns(len(strategies))
 
     for col, strategy in zip(cols, strategies):
@@ -149,4 +161,6 @@ with tab_stats:
                 col.metric(f"**{strategy.title()}**", "Unavailable")
 
     st.divider()
-    st.info("💡 Each chunking strategy maintains its own isolated Qdrant collection (`deepvault_fixed`, `deepvault_sliding`, etc.) to enable fair side-by-side comparison.")
+    st.info(
+        "💡 Each chunking strategy maintains its own isolated Qdrant collection (`deepvault_sliding`, `deepvault_recursive`, etc.) to enable fair side-by-side comparison."
+    )

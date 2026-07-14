@@ -20,6 +20,7 @@ from app.infrastructure.query.router import QueryRouter
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def classifier():
     return QueryClassifier()
@@ -33,6 +34,7 @@ def router():
 # ---------------------------------------------------------------------------
 # QueryClassifier — FACTUAL queries
 # ---------------------------------------------------------------------------
+
 
 class TestFactualClassification:
     def test_what_is_basic(self, classifier):
@@ -48,7 +50,7 @@ class TestFactualClassification:
         assert classifier.classify("Who is the author of the BM25 paper?") == FACTUAL
 
     def test_how_many(self, classifier):
-        assert classifier.classify("How many chunks does fixed window chunking produce?") == FACTUAL
+        assert classifier.classify("How many chunks does sliding window chunking produce?") == FACTUAL
 
     def test_list_query(self, classifier):
         assert classifier.classify("List the supported file types in DeepVault") == FACTUAL
@@ -63,6 +65,7 @@ class TestFactualClassification:
 # ---------------------------------------------------------------------------
 # QueryClassifier — SEMANTIC queries
 # ---------------------------------------------------------------------------
+
 
 class TestSemanticClassification:
     def test_how_does_work(self, classifier):
@@ -87,12 +90,13 @@ class TestSemanticClassification:
 # QueryClassifier — COMPARISON queries
 # ---------------------------------------------------------------------------
 
+
 class TestComparisonClassification:
     def test_vs_keyword(self, classifier):
         assert classifier.classify("BM25 vs vector search: which is better?") == COMPARISON
 
     def test_compare_keyword(self, classifier):
-        assert classifier.classify("Compare the fixed and sliding window chunking strategies") == COMPARISON
+        assert classifier.classify("Compare the sliding and recursive window chunking strategies") == COMPARISON
 
     def test_differences_keyword(self, classifier):
         assert classifier.classify("What are the differences between hybrid and vector retrieval?") == COMPARISON
@@ -114,6 +118,7 @@ class TestComparisonClassification:
 # QueryClassifier — COMPLEX queries
 # ---------------------------------------------------------------------------
 
+
 class TestComplexClassification:
     def test_multi_part_with_and(self, classifier):
         query = "How does hybrid retrieval work and when should I use reranking and what are the latency implications?"
@@ -132,6 +137,7 @@ class TestComplexClassification:
 # ---------------------------------------------------------------------------
 # QueryRouter — routing correctness
 # ---------------------------------------------------------------------------
+
 
 class TestQueryRouter:
     def test_factual_routes_to_hybrid(self, router):
@@ -163,6 +169,7 @@ class TestQueryRouter:
     def test_router_uses_custom_classifier(self):
         """Router correctly delegates to an injected classifier."""
         from unittest.mock import MagicMock
+
         mock_classifier = MagicMock()
         mock_classifier.classify.return_value = FACTUAL
 

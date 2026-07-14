@@ -101,7 +101,7 @@ Not applicable — the interfaces define *behavior* (methods), not *data structu
 - Unit tests mock the ABCs directly without needing live infrastructure.
 - Phase 2's `HybridRetriever` composes two `BaseRetriever` instances cleanly.
 - Type checkers and IDEs surface incorrect usage at development time.
-- Future Phase 4 migration (SQLite → PostgreSQL) requires creating one new class, not modifying any existing service.
+- Future Phase 5 migration (SQLite → PostgreSQL) requires creating one new class, not modifying any existing service.
 
 **Negative:**
 - More boilerplate than a direct implementation. Each component requires an ABC + concrete class.

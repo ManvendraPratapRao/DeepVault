@@ -11,7 +11,7 @@ from app.services.ingestion import IngestionService
 def mock_chunker(sample_chunks):
     chunker = MagicMock()
     chunker.chunk.return_value = sample_chunks
-    chunker.strategy_name = "fixed"
+    chunker.strategy_name = "sliding"
     return chunker
 
 

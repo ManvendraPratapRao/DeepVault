@@ -30,7 +30,7 @@ jobs:
         run: uv run ruff check app/ tests/ scripts/
 
       - name: Type checking (mypy)
-        run: uv run mypy app/ || true
+        run: uv run mypy app/
 
       - name: Test (Pytest)
         run: uv run pytest -v --tb=short

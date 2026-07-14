@@ -18,7 +18,7 @@ class SemanticChunker(BaseChunker):
     """
 
     def __init__(
-        self, embedder, similarity_threshold: float = 0.85, min_chunk_size: int = 100, max_chunk_size: int = 1500
+        self, embedder, similarity_threshold: float = 0.65, min_chunk_size: int = 100, max_chunk_size: int = 1500
     ):
         self.strategy_name = "semantic"
         """

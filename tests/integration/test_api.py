@@ -4,6 +4,7 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
+from app.api.dependencies import get_api_key
 from app.api.schemas.responses import QueryAPIResponse, SourceChunk
 from app.core.models.document import Document, DocumentMetadata
 from app.dependencies import get_document_service, get_ingestion_service, get_query_service, get_redis_cache
@@ -22,8 +23,8 @@ def mock_ingestion_svc():
         metadata=DocumentMetadata(source="test.txt"),
         hash="hashxyz",
     )
-    svc.ingest_text.return_value = doc
-    svc.ingest_file.return_value = doc
+    svc.ingest_text.return_value = (doc, 3)
+    svc.ingest_file.return_value = (doc, 3)
     return svc
 
 
@@ -33,7 +34,7 @@ def mock_query_svc():
     # Return a dummy query response
     svc.ask.return_value = QueryAPIResponse(
         answer="This is a test answer.",
-        sources=[SourceChunk(content="chunk1", document_id="doc1", chunk_index=0, metadata={"source": "test.txt"})],
+        sources=[SourceChunk(id="chunk-1", content="chunk1", document_id="doc1", chunk_index=0, metadata={"source": "test.txt"})],
         latency_ms=42.0,
         request_id="req-123",
     )
@@ -70,6 +71,7 @@ async def test_client(mock_ingestion_svc, mock_query_svc, mock_document_svc, moc
     app.dependency_overrides[get_query_service] = lambda: mock_query_svc
     app.dependency_overrides[get_document_service] = lambda: mock_document_svc
     app.dependency_overrides[get_redis_cache] = lambda: mock_redis
+    app.dependency_overrides[get_api_key] = lambda: "test_key"
 
     # We must patch initialize_all, shutdown_all, and AsyncQdrantClient to avoid hitting real DBs during tests
     with (

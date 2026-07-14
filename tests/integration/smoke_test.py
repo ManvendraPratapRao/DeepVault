@@ -2,7 +2,7 @@ import asyncio
 import hashlib
 
 from app.core.models.document import Document, DocumentMetadata
-from app.infrastructure.chunkers.fixed import FixedWindowChunker
+from app.infrastructure.chunkers.sliding import SlidingWindowChunker
 from app.infrastructure.embedders.bge import BgeEmbedder
 from app.infrastructure.llm.groq import GroqLLMClient
 from app.infrastructure.logging.structured import logger
@@ -35,7 +35,7 @@ async def run_smoke_test():
 
     # 3. Test Chunking
     logger.info("Testing Chunker...")
-    chunker = FixedWindowChunker(chunk_size=100, chunk_overlap=20)
+    chunker = SlidingWindowChunker(chunk_size=100, chunk_overlap=20)
     chunks = chunker.chunk(doc)
     logger.info(f"Generated {len(chunks)} chunks.")
 

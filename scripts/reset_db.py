@@ -9,7 +9,7 @@ Modes:
 
   Single strategy reset:
     python -m scripts.reset_db --strategy semantic
-    python -m scripts.reset_db --strategy fixed
+    python -m scripts.reset_db --strategy sliding
 """
 
 import argparse
@@ -25,7 +25,7 @@ from qdrant_client import AsyncQdrantClient
 
 DB_PATH = "deepvault.db"
 QDRANT_URL = "http://localhost:6333"
-ALL_STRATEGIES = ["fixed", "sliding", "structure", "semantic"]
+ALL_STRATEGIES = ["sliding", "recursive", "structure", "semantic"]
 
 
 # ---------------------------------------------------------------------------

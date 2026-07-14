@@ -26,7 +26,7 @@ Candidates considered: **SQLite (aiosqlite)**, **PostgreSQL (asyncpg)**, **Mongo
 
 ## Decision
 
-**Use SQLite** with the `aiosqlite` async wrapper for Phase 1. Plan a PostgreSQL migration in Phase 4.
+**Use SQLite** with the `aiosqlite` async wrapper for Phase 1 through 4. Plan a PostgreSQL migration in Phase 5 when multi-tenant features are added.
 
 ---
 
@@ -53,7 +53,7 @@ Candidates considered: **SQLite (aiosqlite)**, **PostgreSQL (asyncpg)**, **Mongo
 | Performance | ✅ Scales to millions of documents with connection pooling. |
 | Value in Phase 1 | ❌ Overkill. Phase 1 corpus is <1,000 documents. PostgreSQL's strengths don't apply. |
 
-**Deferred to Phase 4:** PostgreSQL migration is planned when the document store needs to handle concurrent writes from multiple API workers (Gunicorn/Uvicorn multi-process).
+**Deferred to Phase 5:** PostgreSQL migration is planned when the document store needs to handle concurrent writes from multiple API workers and robust multi-tenant access control (JWT/RBAC).
 
 ### MongoDB
 
@@ -98,4 +98,4 @@ Candidates considered: **SQLite (aiosqlite)**, **PostgreSQL (asyncpg)**, **Mongo
 - Table is created with `CREATE TABLE IF NOT EXISTS` at startup in `SqliteDocumentStore.initialize()`.
 - Duplicate detection uses `SELECT id FROM documents WHERE hash = ?` — queries by hash, not by primary key.
 - The `SqliteDocumentStore` implements `BaseDocumentStore` (`app/core/interfaces/document_store.py`).
-- Migration path to PostgreSQL (Phase 4): create `PostgresDocumentStore` implementing the same ABC. No `IngestionService` changes required.
+- Migration path to PostgreSQL (Phase 5): create `PostgresDocumentStore` implementing the same ABC. No `IngestionService` changes required.

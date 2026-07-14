@@ -1,18 +1,30 @@
 import time
 
-from app.api.middleware.metrics import record_query_metrics
-from app.core.exceptions import RetrievalError
+from opentelemetry import trace
+
+tracer = trace.get_tracer(__name__)
+
+
+from app.config import settings
+from app.core.exceptions import DeepVaultError, RetrievalError
 from app.core.interfaces.llm_client import BaseLLMClient
 from app.core.interfaces.reranker import BaseReranker
 from app.core.interfaces.retriever import BaseRetriever
 from app.core.interfaces.rewriter import BaseQueryRewriter
-from app.core.models.query import QueryRequest, QueryResponse
+from app.core.models.query import QueryRequest, QueryResponse, TokenUsage
+from app.infrastructure.llm.router import LLMRouter
 from app.infrastructure.logging.structured import logger
-from app.infrastructure.query.classifier import QueryClassifier
 from app.infrastructure.query.decomposer import QueryDecomposer
 from app.infrastructure.query.router import QueryRouter
 from app.prompts.v1 import RAG_SYSTEM_PROMPT, RAG_USER_TEMPLATE
 from app.services.cache_service import CacheService
+
+
+class LowConfidenceError(DeepVaultError):
+    """Raised when the top retrieved chunk is below the confidence threshold."""
+    def __init__(self, chunks):
+        super().__init__("Low context confidence")
+        self.chunks = chunks
 
 
 class QueryService:
@@ -30,6 +42,7 @@ class QueryService:
         rewriter: BaseQueryRewriter | None = None,
         router: QueryRouter | None = None,
         decomposer: QueryDecomposer | None = None,
+        llm_router: LLMRouter | None = None,
     ):
         self.retriever = retriever
         self.llm_client = llm_client
@@ -38,98 +51,89 @@ class QueryService:
         self.rewriter = rewriter
         self.router = router
         self.decomposer = decomposer
+        self.llm_router = llm_router
 
-    async def ask(self, request: QueryRequest, request_id: str = "internal") -> QueryResponse:
+    async def _prepare_rag_context(self, request: QueryRequest, request_id: str) -> tuple[list, str, str | None, str | None, str]:
         """
-        The core RAG loop: Retrieve -> Prompt -> Generate.
+        Runs the pre-generation RAG pipeline.
+        Returns: (chunks, context_str, query_type, model_name, final_user_prompt)
+        Raises: RetrievalError, LowConfidenceError
         """
-        start_time = time.perf_counter()
-
-        logger.info(
-            f"Processing query: {request.query_text[:50]}...",
-            extra={"extra_fields": {"request_id": request_id}},
-        )
-
-        # 1. Check Redis Cache for instantaneous semantic hits!
-        if self.cache_service:
-            cached_resp = await self.cache_service.get_cached_response(request.query_text)
-            if cached_resp:
-                # We overwrite the cached request_id with the live transaction IDs to keep traces clean
-                cached_resp.request_id = request_id
-                cached_resp.latency_ms = (time.perf_counter() - start_time) * 1000
-                return cached_resp
-
-        # 2. Query Rewriting (Session 8)
-        # Expansion helps the retriever find results for vague or abbreviated queries
+        # --- 1. Query Rewriting ---
         search_query = request.query_text
         if request.use_query_rewriting and self.rewriter:
-            try:
-                search_query = await self.rewriter.rewrite(request.query_text)
-            except Exception as e:
-                logger.error(f"Query rewriting failed: {e}. Falling back to raw query.")
+            with tracer.start_as_current_span("deepvault.query.rewrite") as span:
+                try:
+                    search_query = await self.rewriter.rewrite(request.query_text)
+                    span.set_attribute("query.rewritten", search_query)
+                except Exception as e:
+                    logger.error(f"Query rewriting failed: {e}. Falling back to raw query.")
+                    span.record_exception(e)
 
-        # 2. Retrieve relevant chunks from the Vector Store
-        # We target the strategy-specific collection if requested
+        # --- 2. Query Router ---
         collection_name = f"deepvault_{request.chunking_strategy}" if request.chunking_strategy else None
-
-        # Guard against unimplemented retrieval strategies (unless vector or hybrid)
         valid_strategies = {"vector", "hybrid", "hybrid_rerank", "auto"}
         strat = (request.retrieval_strategy or "vector").lower()
-        if strat not in valid_strategies:
-            raise NotImplementedError(f"Retrieval strategy '{strat}' is not yet implemented. Known: {valid_strategies}")
+        base_strat = strat.replace("_rewrite", "")
+        if base_strat not in valid_strategies:
+            raise NotImplementedError(f"Retrieval strategy '{strat}' is not yet implemented.")
 
-        # --- Phase 3: Query Router ---
-        # If strategy is 'auto', classify the query and route to best strategy
         query_type: str | None = None
         if strat == "auto" and self.router:
-            query_type, strat = self.router.classify_and_route(search_query)
-            logger.info(f"Router: type={query_type!r} → strategy={strat!r}")
+            with tracer.start_as_current_span("deepvault.query.route") as span:
+                query_type, strat = self.router.classify_and_route(search_query)
+                span.set_attribute("router.query_type", query_type)
+                span.set_attribute("router.strategy", strat)
+                logger.info(f"Router: type={query_type!r} → strategy={strat!r}")
         elif strat == "auto":
-            strat = "hybrid"  # Sensible default when router not wired
+            strat = "hybrid"
 
         collection_display = collection_name or "Default"
         logger.info(
-            f"Strategy: chunking={request.chunking_strategy!r} "
-            f"retrieval={strat!r} collection={collection_display!r}",
-            extra={
-                "extra_fields": {
-                    "chunking_strategy": request.chunking_strategy,
-                    "retrieval_strategy": strat,
-                    "query_type": query_type,
-                    "collection": collection_name,
-                }
-            },
+            f"Strategy: chunking={request.chunking_strategy!r} retrieval={strat!r} collection={collection_display!r}",
+            extra={"extra_fields": {"chunking_strategy": request.chunking_strategy, "retrieval_strategy": strat, "query_type": query_type, "collection": collection_name}},
         )
 
-        # If we are reranking, we fetch more candidate chunks initially
-        fetch_k = request.top_k * 4 if strat == "hybrid_rerank" else request.top_k
+        fetch_k = request.top_k * 2 if "rerank" in strat else request.top_k
 
-        # --- Phase 3: Query Decomposer ---
-        # For 'complex' queries, decompose into sub-queries and retrieve in parallel
-        if query_type == "complex" and self.decomposer:
-            chunks = await self.decomposer.decompose_and_retrieve(
-                query=search_query,
-                retriever=self.retriever,
-                top_k=fetch_k,
-                collection_name=collection_name,
-            )
-        else:
-            chunks = await self.retriever.retrieve(
-                query=search_query, top_k=fetch_k, filters=request.filters, collection_name=collection_name
-            )
+        # --- 3. Retrieval & Decomposition ---
+        with tracer.start_as_current_span("deepvault.query.retrieve") as span:
+            span.set_attribute("retrieval.strategy", strat)
+            span.set_attribute("retrieval.fetch_k", fetch_k)
+            span.set_attribute("retrieval.collection", collection_display)
+            if query_type == "complex" and self.decomposer:
+                span.set_attribute("retrieval.decomposed", True)
+                chunks = await self.decomposer.decompose_and_retrieve(
+                    query=search_query, retriever=self.retriever, top_k=fetch_k, collection_name=collection_name
+                )
+            else:
+                span.set_attribute("retrieval.decomposed", False)
+                chunks = await self.retriever.retrieve(
+                    query=search_query, top_k=fetch_k, filters=request.filters, collection_name=collection_name
+                )
+            span.set_attribute("retrieval.num_chunks", len(chunks))
 
-        # 2. Handle empty retrieval (Production Safety)
         if not chunks:
             raise RetrievalError("No relevant documents found for this query.", detail={"query": request.query_text})
 
-        # 3. Optional Reranking Step (Session 7)
+        # --- 4. Reranking ---
         if strat == "hybrid_rerank" and self.reranker:
-            logger.info(f"Reranking {len(chunks)} candidate chunks using Cross-Encoder...")
-            chunks = await self.reranker.rerank(query=search_query, chunks=chunks, top_k=request.top_k)
-            logger.info(f"Reranking complete. Selected top {len(chunks)} semantic matches.")
+            with tracer.start_as_current_span("deepvault.query.rerank") as span:
+                span.set_attribute("rerank.initial_chunks", len(chunks))
+                logger.info(f"Reranking {len(chunks)} candidate chunks using Cross-Encoder...")
+                chunks = await self.reranker.rerank(query=search_query, chunks=chunks, top_k=request.top_k)
+                span.set_attribute("rerank.final_chunks", len(chunks))
 
-        # 3. Build the Context String with citations
-        # We include the source name and chunk index so the LLM can reference them
+        # --- 5. Context Confidence Guard ---
+        top_score = chunks[0].score or 0.0
+        if top_score < settings.CONTEXT_CONFIDENCE_THRESHOLD:
+            logger.warning(
+                "Low context confidence \u2014 refusing to generate to prevent hallucination.",
+                extra={"extra_fields": {"request_id": request_id, "top_chunk_score": top_score, "threshold": settings.CONTEXT_CONFIDENCE_THRESHOLD}},
+            )
+            raise LowConfidenceError(chunks)
+
+        # --- 6. Build Prompt ---
         context_blocks = []
         for chunk in chunks:
             source_info = chunk.metadata.get("source", "Unknown Source")
@@ -137,157 +141,102 @@ class QueryService:
             context_blocks.append(block)
 
         context_str = "\n\n---\n\n".join(context_blocks)
+        final_user_prompt = RAG_USER_TEMPLATE.replace("{context}", context_str).replace("{question}", request.query_text)
 
-        # 4. Build the Final Prompt
-        # We manually replace {context} and {question} to avoid crashes if papers have braces.
-        final_user_prompt = RAG_USER_TEMPLATE.replace("{context}", context_str).replace(
-            "{question}", request.query_text
-        )
+        # --- 7. Select LLM Model using LLMRouter ---
+        model_name = request.model_name
+        if self.llm_router and not model_name:
+            model_selection = self.llm_router.select(
+                query_type=query_type, query_text=request.query_text, context=context_str
+            )
+            model_name = model_selection.model_name
 
-        # 5. Generate the Answer via LLM (Groq)
-        # We pass our specialized RAG_SYSTEM_PROMPT to ensure groundedness
-        # This now returns a structured LLMResult with telemetry
-        llm_result = await self.llm_client.generate(prompt=final_user_prompt, system_prompt=RAG_SYSTEM_PROMPT)
-
-        # 6. Finalize Performance Metrics and Sanitize Metadata
-        latency_ms = (time.perf_counter() - start_time) * 1000
-
-        # High-Availability Sanitization: Ensure metadata is JSON serializable
-        # Senior Dev Tip: We convert datetime objects and other complex types to strings here
-        # to prevent 500 errors during final pydantic validation/serialization.
+        # High-Availability Sanitization for metadata
         for chunk in chunks:
             if hasattr(chunk, "metadata") and isinstance(chunk.metadata, dict):
                 for k, v in chunk.metadata.items():
-                    if hasattr(v, "isoformat"):  # Handle datetime objects
+                    if hasattr(v, "isoformat"):
                         chunk.metadata[k] = v.isoformat()
                     elif not isinstance(v, (str, int, float, bool, list, dict, type(None))):
                         chunk.metadata[k] = str(v)
 
-        logger.info(
-            "Query answered successfully (Cache Miss)",
-            extra={
-                "extra_fields": {
-                    "request_id": request_id,
-                    "latency_ms": latency_ms,
-                    "num_sources": len(chunks),
-                    "cache_miss": True,
-                    "prompt_tokens": llm_result.usage.prompt_tokens,
-                    "completion_tokens": llm_result.usage.completion_tokens,
-                }
-            },
-        )
+        return chunks, context_str, query_type, model_name, final_user_prompt
 
-        response = QueryResponse(
-            answer=llm_result.answer,
-            sources=chunks,
-            usage=llm_result.usage,
-            latency_ms=latency_ms,
-            request_id=request_id,
-        )
+    async def ask(self, request: QueryRequest, request_id: str = "internal") -> QueryResponse:
+        start_time = time.perf_counter()
+        logger.info(f"Processing query: {request.query_text[:50]}...", extra={"extra_fields": {"request_id": request_id}})
 
-        # Record Prometheus metrics for this query
-        record_query_metrics(
-            retrieval_strategy=strat,
-            chunking_strategy=request.chunking_strategy or "fixed",
-            duration_seconds=latency_ms / 1000,
-            status="success",
-            prompt_tokens=llm_result.usage.prompt_tokens,
-            completion_tokens=llm_result.usage.completion_tokens,
-        )
+        if self.cache_service and not request.messages:
+            with tracer.start_as_current_span("deepvault.query.cache_check") as span:
+                span.set_attribute("query.text", request.query_text)
+                cached_resp = await self.cache_service.get_cached_response(request.query_text)
+                if cached_resp:
+                    span.set_attribute("cache.hit", True)
+                    cached_resp.request_id = request_id
+                    cached_resp.latency_ms = (time.perf_counter() - start_time) * 1000
+                    return cached_resp
+                span.set_attribute("cache.hit", False)
 
-        # 7. Cache the semantic result to radically speed up identical future questions
-        if self.cache_service:
-            await self.cache_service.cache_response(request.query_text, response)
+        try:
+            chunks, context_str, query_type, model_name, final_user_prompt = await self._prepare_rag_context(request, request_id)
+        except LowConfidenceError as e:
+            return QueryResponse(
+                answer="I don't have sufficient information in the knowledge base to answer this question accurately. The retrieved context does not appear to be directly relevant to your query. Please try rephrasing your question or verify that the relevant documents have been ingested.",
+                sources=e.chunks, usage=TokenUsage(), latency_ms=(time.perf_counter() - start_time) * 1000, request_id=request_id, low_confidence=True
+            )
+
+        with tracer.start_as_current_span("deepvault.query.generate") as span:
+            span.set_attribute("generate.model", model_name or "default")
+            span.set_attribute("generate.prompt_length", len(final_user_prompt))
+            llm_result = await self.llm_client.generate(prompt=final_user_prompt, system_prompt=RAG_SYSTEM_PROMPT, model_name=model_name, history=request.messages)
+            span.set_attribute("generate.answer_length", len(llm_result.answer))
+            span.set_attribute("generate.prompt_tokens", llm_result.usage.prompt_tokens)
+            span.set_attribute("generate.completion_tokens", llm_result.usage.completion_tokens)
+
+        latency_ms = (time.perf_counter() - start_time) * 1000
+        logger.info("Query answered successfully (Cache Miss)", extra={"extra_fields": {"request_id": request_id, "latency_ms": latency_ms, "num_sources": len(chunks), "cache_miss": True}})
+
+        response = QueryResponse(answer=llm_result.answer, sources=chunks, usage=llm_result.usage, latency_ms=latency_ms, request_id=request_id)
+
+        if self.cache_service and not request.messages:
+            with tracer.start_as_current_span("deepvault.query.cache_write"):
+                await self.cache_service.cache_response(request.query_text, response)
 
         return response
 
-    async def ask_stream(
-        self,
-        request: QueryRequest,
-        request_id: str = "internal",
-    ):
-        """
-        Streaming variant of the RAG pipeline.
-
-        Runs the full pipeline up to prompt construction, then yields tokens
-        from the LLM stream one-by-one.  Returns an async generator of strings.
-
-        Cache note: streaming responses bypass the query cache on egress.
-        After the stream completes, the full response is cached in a fire-and-
-        forget background task so future identical queries are served instantly.
-        """
+    async def ask_stream(self, request: QueryRequest, request_id: str = "internal"):
         import asyncio
+        import json
 
         from app.core.models.query import TokenUsage
 
         start_time = time.perf_counter()
 
-        # --- 1. Cache check (same as ask()) ---
-        if self.cache_service:
+        if self.cache_service and not request.messages:
             cached = await self.cache_service.get_cached_response(request.query_text)
             if cached:
-                # Replay from cache token-by-token so the UI still looks "live"
                 for word in cached.answer.split(" "):
                     yield word + " "
                 return
 
-        # --- 2. Query Rewriting ---
-        search_query = request.query_text
-        if request.use_query_rewriting and self.rewriter:
-            try:
-                search_query = await self.rewriter.rewrite(request.query_text)
-            except Exception as e:
-                logger.error(f"Query rewriting failed in stream: {e}")
-
-        # --- 3. Retrieve ---
-        collection_name = f"deepvault_{request.chunking_strategy}" if request.chunking_strategy else None
-        strat = (request.retrieval_strategy or "vector").lower()
-        fetch_k = request.top_k * 4 if strat == "hybrid_rerank" else request.top_k
-
-        chunks = await self.retriever.retrieve(
-            query=search_query,
-            top_k=fetch_k,
-            filters=request.filters,
-            collection_name=collection_name,
-        )
-
-        if not chunks:
+        try:
+            chunks, context_str, query_type, model_name, final_user_prompt = await self._prepare_rag_context(request, request_id)
+        except LowConfidenceError:
+            yield "⚠️ Insufficient context — the retrieved documents do not appear relevant to your question. Please rephrase or check that the relevant documents have been ingested."
+            return
+        except RetrievalError:
             yield "[ERROR] No relevant documents found for this query."
             return
 
-        # --- 4. Optional Reranking ---
-        if strat == "hybrid_rerank" and self.reranker:
-            chunks = await self.reranker.rerank(query=search_query, chunks=chunks, top_k=request.top_k)
+        sources_payload = [{"source": c.metadata.get("source", "Unknown"), "content": c.content, "score": c.score} for c in chunks]
+        yield f"[SOURCES] {json.dumps(sources_payload)}\n"
 
-        # --- 5. Build Prompt ---
-        context_blocks = []
-        for chunk in chunks:
-            source_info = chunk.metadata.get("source", "Unknown Source")
-            block = f"[Source: {source_info}, Chunk: {chunk.chunk_index}]\n{chunk.content}"
-            context_blocks.append(block)
-
-        context_str = "\n\n---\n\n".join(context_blocks)
-        final_user_prompt = RAG_USER_TEMPLATE.replace("{context}", context_str).replace(
-            "{question}", request.query_text
-        )
-
-        # --- 6. Stream tokens from LLM ---
         accumulated = ""
-        async for token in self.llm_client.stream(
-            prompt=final_user_prompt, system_prompt=RAG_SYSTEM_PROMPT
-        ):
+        async for token in self.llm_client.stream(prompt=final_user_prompt, system_prompt=RAG_SYSTEM_PROMPT, model_name=model_name, history=request.messages):
             accumulated += token
             yield token
 
-        # --- 7. Fire-and-forget: cache the full response after stream ends ---
-        if self.cache_service and accumulated:
+        if self.cache_service and accumulated and not request.messages:
             latency_ms = (time.perf_counter() - start_time) * 1000
-            full_response = QueryResponse(
-                answer=accumulated,
-                sources=chunks,
-                usage=TokenUsage(prompt_tokens=0, completion_tokens=0, total_tokens=0),
-                latency_ms=latency_ms,
-                request_id=request_id,
-            )
+            full_response = QueryResponse(answer=accumulated, sources=chunks, usage=TokenUsage(prompt_tokens=0, completion_tokens=0, total_tokens=0), latency_ms=latency_ms, request_id=request_id)
             asyncio.create_task(self.cache_service.cache_response(request.query_text, full_response))
-

@@ -78,8 +78,16 @@ class FeedbackStore:
                     retrieval_strategy, chunking_strategy, session_id, created_at)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
-                    feedback_id, request_id, query_text, answer_text, rating,
-                    comment, retrieval_strategy, chunking_strategy, session_id, created_at,
+                    feedback_id,
+                    request_id,
+                    query_text,
+                    answer_text,
+                    rating,
+                    comment,
+                    retrieval_strategy,
+                    chunking_strategy,
+                    session_id,
+                    created_at,
                 ),
             )
             await db.commit()
@@ -94,8 +102,12 @@ class FeedbackStore:
             # Overall average rating
             async with db.execute("SELECT AVG(rating) as avg_rating, COUNT(*) as total FROM feedback") as cur:
                 row = await cur.fetchone()
-                overall_avg = round(row["avg_rating"] or 0.0, 2)
-                total_count = row["total"]
+                if row:
+                    overall_avg = round(row["avg_rating"] or 0.0, 2)
+                    total_count = row["total"]
+                else:
+                    overall_avg = 0.0
+                    total_count = 0
 
             # Rating distribution (1-5 histogram)
             distribution: dict[int, int] = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
@@ -141,8 +153,6 @@ class FeedbackStore:
         """Returns the most recent feedback entries for display."""
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
-            async with db.execute(
-                "SELECT * FROM feedback ORDER BY created_at DESC LIMIT ?", (limit,)
-            ) as cur:
+            async with db.execute("SELECT * FROM feedback ORDER BY created_at DESC LIMIT ?", (limit,)) as cur:
                 rows = await cur.fetchall()
                 return [dict(r) for r in rows]

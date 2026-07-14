@@ -1,4 +1,3 @@
-import re
 import uuid
 
 from app.core.interfaces.chunker import BaseChunker
@@ -7,73 +6,62 @@ from app.core.models.document import Chunk, Document
 
 class SlidingWindowChunker(BaseChunker):
     """
-    An advanced chunker that slides a window across the text.
-    It attempts to find natural sentence boundaries ('.', '!', '?')
-    to avoid cutting sentences in half.
+    Splits documents into fixed-size character chunks with optional overlap.
+    Simple, fast, and very effective for most enterprise RAG use cases.
     """
 
-    def __init__(self, window_size: int = 600, stride: int = 480):
+    def __init__(self, chunk_size: int = 500, chunk_overlap: int = 100):
         self.strategy_name = "sliding"
-        self.window_size = window_size
-        self.stride = stride
+        if chunk_size <= 0:
+            raise ValueError(f"chunk_size must be positive, got {chunk_size}")
+        if chunk_overlap < 0:
+            raise ValueError(f"chunk_overlap must be non-negative, got {chunk_overlap}")
+        if chunk_overlap >= chunk_size:
+            raise ValueError(
+                f"chunk_overlap ({chunk_overlap}) must be less than chunk_size ({chunk_size}), "
+                f"otherwise the window never advances"
+            )
+        self.chunk_size = chunk_size
+        self.chunk_overlap = chunk_overlap
 
     def chunk(self, document: Document) -> list[Chunk]:
         """
-        Implementation of the sliding-window logic.
+        Implementation of the fixed-window splitting logic.
         """
         chunks = []
         text = document.content
         start = 0
         index = 0
 
-        overlap = self.window_size - self.stride
-        if overlap < 0:
-            overlap = 0
+        # If the document is shorter than the chunk size, just return one chunk
+        if len(text) <= self.chunk_size:
+            return [
+                Chunk(
+                    id=str(uuid.uuid4()),
+                    document_id=document.id,
+                    content=text,
+                    chunk_index=0,
+                    metadata=document.metadata.model_dump(),
+                )
+            ]
 
         while start < len(text):
-            # 1. Expand the END to a sentence boundary
-            end = min(start + self.window_size, len(text))
-            if end < len(text):
-                lookahead = text[end : end + 100]
-                sentence_break = re.search(r"[.!?]\s+", lookahead)
-                if sentence_break:
-                    effective_end = end + sentence_break.end()
-                else:
-                    effective_end = end
-            else:
-                effective_end = end
+            # Calculate end of the window
+            end = start + self.chunk_size
+            chunk_text = text[start:end]
 
-            chunk_text = text[start:effective_end].strip()
-
-            if chunk_text:
-                chunks.append(
-                    Chunk(
-                        id=str(uuid.uuid4()),
-                        document_id=document.id,
-                        content=chunk_text,
-                        chunk_index=index,
-                        metadata=document.metadata.model_dump(),
-                    )
+            chunks.append(
+                Chunk(
+                    id=str(uuid.uuid4()),
+                    document_id=document.id,
+                    content=chunk_text,
+                    chunk_index=index,
+                    metadata=document.metadata.model_dump(),
                 )
+            )
 
-            # 2. Advance START dynamically for the next chunk
-            if effective_end >= len(text):
-                break
-
-            target_next_start = max(start + 1, effective_end - overlap)
-
-            # Find a sentence boundary near the target start point
-            if target_next_start < effective_end:
-                lookahead_start = text[target_next_start : target_next_start + 150]
-                start_boundary = re.search(r"[.!?]\s+", lookahead_start)
-
-                if start_boundary and (target_next_start + start_boundary.end() < effective_end):
-                    start = target_next_start + start_boundary.end()
-                else:
-                    start = target_next_start
-            else:
-                start = target_next_start
-
+            # Move the start pointer forward, but subtract overlap to keep context
+            start += self.chunk_size - self.chunk_overlap
             index += 1
 
         return chunks

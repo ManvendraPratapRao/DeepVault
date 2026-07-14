@@ -43,8 +43,13 @@ class CrossEncoderReranker(BaseReranker):
 
             logger.info(f"Cross-Encoder successfully reranked {len(chunks)} chunks.")
 
-            # Return top_k chunks (peel off the score tuple)
-            return [chunk for chunk, score in scored_chunks[:top_k]]
+            # Update chunks with their new precise scores and return top_k
+            final_chunks = []
+            for chunk, score in scored_chunks[:top_k]:
+                chunk.score = float(score)  # Convert numpy float to native float
+                final_chunks.append(chunk)
+                
+            return final_chunks
 
         except Exception as e:
             logger.error(f"Cross-Encoder reranking failed: {e}")

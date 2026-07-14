@@ -22,25 +22,24 @@ while still using the powerful model when quality matters.
 
 from dataclasses import dataclass
 
-from app.config import settings
 from app.infrastructure.logging.structured import logger
 
 # ---------------------------------------------------------------------------
 # Model tiers
 # ---------------------------------------------------------------------------
 
-FAST_MODEL = "llama-3.1-8b-instant"      # Cheap + fast for simple queries
+FAST_MODEL = "llama-3.1-8b-instant"  # Cheap + fast for simple queries
 QUALITY_MODEL = "llama-3.3-70b-versatile"  # Best quality for complex queries
 
 # Groq pricing (USD per 1M tokens, approximate as of 2026)
 _COST_PER_M = {
-    FAST_MODEL:    {"input": 0.05, "output": 0.08},
+    FAST_MODEL: {"input": 0.05, "output": 0.08},
     QUALITY_MODEL: {"input": 0.59, "output": 0.79},
 }
 
 # Query complexity thresholds
 _COMPLEX_QUERY_TYPES = {"comparison", "complex"}
-_LONG_QUERY_WORDS = 15   # Queries above this word count are routed to quality model
+_LONG_QUERY_WORDS = 15  # Queries above this word count are routed to quality model
 _LARGE_CONTEXT_CHARS = 4000  # Context above this size benefits from stronger reasoning
 
 
@@ -85,7 +84,10 @@ class LLMRouter:
             return ModelSelection(
                 model_name=QUALITY_MODEL,
                 reason="force_quality=True",
-                estimated_cost_per_1k_tokens=(_COST_PER_M[QUALITY_MODEL]["input"] + _COST_PER_M[QUALITY_MODEL]["output"]) / 2000,
+                estimated_cost_per_1k_tokens=(
+                    _COST_PER_M[QUALITY_MODEL]["input"] + _COST_PER_M[QUALITY_MODEL]["output"]
+                )
+                / 2000,
             )
 
         word_count = len(query_text.split())
@@ -93,9 +95,7 @@ class LLMRouter:
 
         # Route to quality model if any complexity signal is present
         use_quality = (
-            query_type in _COMPLEX_QUERY_TYPES
-            or word_count >= _LONG_QUERY_WORDS
-            or context_len >= _LARGE_CONTEXT_CHARS
+            query_type in _COMPLEX_QUERY_TYPES or word_count >= _LONG_QUERY_WORDS or context_len >= _LARGE_CONTEXT_CHARS
         )
 
         model = QUALITY_MODEL if use_quality else FAST_MODEL

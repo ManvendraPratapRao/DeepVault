@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from app.core.models.document import Document, DocumentMetadata
-from app.infrastructure.chunkers.fixed import FixedWindowChunker
+from app.infrastructure.chunkers.sliding import SlidingWindowChunker
 from app.infrastructure.embedders.bge import BgeEmbedder
 
 
@@ -63,7 +63,7 @@ async def test_semantic_clustering():
 async def test_chunk_embedding_drift():
     """Verify that adjacent chunks in a real document have reasonable similarity."""
     embedder = BgeEmbedder()
-    chunker = FixedWindowChunker(chunk_size=300, chunk_overlap=50)
+    chunker = SlidingWindowChunker(chunk_size=300, chunk_overlap=50)
 
     content = "This is a long document about the architecture of DeepVault. " * 20
     doc = Document(content=content, metadata=DocumentMetadata(source="test.txt"), hash="h")

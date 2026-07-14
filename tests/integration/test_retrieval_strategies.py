@@ -83,7 +83,7 @@ def mock_llm() -> AsyncMock:
 
 @pytest.fixture
 def mock_vector_retriever() -> AsyncMock:
-    """Simulates a QdrantVectorStore retriever with fixed ranking."""
+    """Simulates a QdrantVectorStore retriever with sliding ranking."""
     retriever = AsyncMock()
     # Vector search ranks by embedding similarity: c1, c2, c3, c4, c5
     retriever.retrieve.return_value = CORPUS_CHUNKS[:3]
@@ -128,7 +128,7 @@ async def test_vector_retrieval_strategy(mock_vector_retriever, mock_llm):
         query_text="How does DeepVault handle retrieval?",
         top_k=3,
         retrieval_strategy="vector",
-        chunking_strategy="fixed",
+        chunking_strategy="sliding",
     )
     response = await service.ask(request)
 
@@ -143,7 +143,7 @@ async def test_vector_retrieval_strategy(mock_vector_retriever, mock_llm):
         query="How does DeepVault handle retrieval?",
         top_k=3,
         filters=None,
-        collection_name="deepvault_fixed",
+        collection_name="deepvault_sliding",
     )
     # LLM was called exactly once
     mock_llm.generate.assert_awaited_once()
@@ -174,7 +174,7 @@ async def test_hybrid_retrieval_strategy(mock_vector_retriever, mock_bm25_retrie
         query_text="Explain BM25 keyword retrieval in DeepVault",
         top_k=3,
         retrieval_strategy="hybrid",
-        chunking_strategy="fixed",
+        chunking_strategy="sliding",
     )
     response = await service.ask(request)
 
@@ -220,7 +220,7 @@ async def test_hybrid_rerank_strategy(mock_vector_retriever, mock_bm25_retriever
         query_text="How does cross-encoder reranking improve precision?",
         top_k=2,
         retrieval_strategy="hybrid_rerank",
-        chunking_strategy="fixed",
+        chunking_strategy="sliding",
     )
     response = await service.ask(request)
 
@@ -254,7 +254,7 @@ async def test_strategies_return_different_rankings(mock_vector_retriever, mock_
         query_text="BM25 keyword retrieval index",
         top_k=3,
         retrieval_strategy="vector",
-        chunking_strategy="fixed",
+        chunking_strategy="sliding",
     )
 
     vector_resp = await vector_service.ask(query)
@@ -266,8 +266,7 @@ async def test_strategies_return_different_rankings(mock_vector_retriever, mock_
     # The two strategies should return different orderings
     # (BM25 prioritises keyword matches, vector prioritises semantic similarity)
     assert vector_ids != bm25_ids, (
-        "Vector and BM25 retrieval returned identical rankings — "
-        "test mock setup may be incorrect."
+        "Vector and BM25 retrieval returned identical rankings — test mock setup may be incorrect."
     )
 
 
@@ -287,7 +286,7 @@ async def test_reranker_reduces_source_count(mock_vector_retriever, mock_bm25_re
         query_text="reranking precision",
         top_k=2,
         retrieval_strategy="hybrid_rerank",
-        chunking_strategy="fixed",
+        chunking_strategy="sliding",
     )
     response = await service.ask(request)
 
@@ -323,7 +322,7 @@ async def test_query_rewriting_modifies_search_query(mock_vector_retriever, mock
         query_text="how does it work?",
         top_k=3,
         retrieval_strategy="vector",
-        chunking_strategy="fixed",
+        chunking_strategy="sliding",
         use_query_rewriting=True,
     )
     await service.ask(request)

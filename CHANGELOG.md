@@ -2,6 +2,24 @@
 
 All notable changes to DeepVault are documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [4.0.0] — Phase 4: Observability, Streaming, & Query Intelligence
+
+### Added
+- **SSE Streaming Endpoint** (`POST /api/v1/stream`): Yields tokens in real-time, drastically reducing perceived latency. Includes rate limiting.
+- **Query Router & Decomposer Integration**: Wired the router and decomposer directly into the streaming endpoint, ensuring complex queries are parsed intelligently even in chat mode.
+- **Rate Limiting**: Enforced sliding-window rate limiting on `/query` and `/stream` routes using Redis, replacing static API key dependency checks.
+- **Detailed Health Checks** (`GET /api/v1/health/detailed`): Re-uses the singleton Qdrant connection pool rather than opening a new one per request.
+
+### Changed
+- **Dependency Injection**: Complete rewrite of `app/dependencies.py`. Migrated to an `asyncio.Lock`-based registry to ensure thread-safe JIT initialization of singletons under concurrent load.
+- **Feedback Store**: Migrated `FeedbackStore` to a true singleton, preventing per-request SQLite table-creation migrations.
+- **Configuration** (`app/config.py`): Bumped version to `4.0.0`, added `CORS_ALLOWED_ORIGINS` for Streamlit/Langfuse integration.
+- **Code Quality**: Added `tiktoken` for accurate token counting instead of division heuristics. Configured `pytest` markers for selective testing. Tightened `mypy` strictness.
+- **Global Error Handling**: Added `CORSMiddleware` to the outermost layer in `app/main.py`.
+
+### Removed
+- **Unused Code**: Removed `limiter.py` stub, duplicated regex in the classifier, and legacy `eval_engine_metrics.py` along with all historical eval data.
+
 ## [3.0.0] — Phase 3: Query Intelligence
 
 ### Added
@@ -70,7 +88,7 @@ All notable changes to DeepVault are documented in this file. Format follows [Ke
 
 ### Added
 - **Core RAG Pipeline**: FastAPI application with ingestion, query, and document management endpoints. Query flow: embed query → Qdrant vector search → context assembly → Groq LLM generation.
-- **4 Chunking Strategies**: Fixed window, sliding window (sentence-boundary aware), structure-based (Markdown headings), and semantic (embedding similarity). Each strategy writes to an isolated Qdrant collection.
+- **4 Chunking Strategies**: Sliding window, recursive character, structure-based (Markdown headings), and semantic (embedding similarity). Each strategy writes to an isolated Qdrant collection.
 - **Evaluation Engine**: Automated benchmark pipeline with LLM-as-judge scoring (faithfulness + relevance), retrieval precision@k, latency percentiles, and per-query cost tracking. Supports balanced sampling across research and synthetic datasets.
 - **Redis Caching**: Query response cache (hash-based lookup) and embedding cache to avoid recomputation. Feature-flag controlled via `CACHE_ENABLED` and `EMBEDDING_CACHE_ENABLED`.
 - **Async Ingestion**: `POST /documents/text/async` returns a job ID immediately, processes in background, and tracks status in Redis.

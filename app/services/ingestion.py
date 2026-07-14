@@ -1,9 +1,14 @@
+
 import asyncio
 import hashlib
 import time
 from pathlib import Path
 
-from app.api.middleware.metrics import record_ingestion
+from opentelemetry import trace
+
+tracer = trace.get_tracer(__name__)
+
+
 from app.core.exceptions import DuplicateDocumentError, IngestionError
 from app.core.interfaces.chunker import BaseChunker
 from app.core.interfaces.document_store import BaseDocumentStore
@@ -42,14 +47,16 @@ class IngestionService:
         extra_metadata = extra_metadata or {}
 
         # 1. Compute SHA-256 hash combined with strategy for logical separation
-        strategy = getattr(self.chunker, "strategy_name", "unknown")
-        unique_string = f"{strategy}_{content}"
-        doc_hash = hashlib.sha256(unique_string.encode()).hexdigest()
+        with tracer.start_as_current_span("deepvault.ingest.hash") as span:
+            strategy = getattr(self.chunker, "strategy_name", "unknown")
+            unique_string = f"{strategy}_{content}"
+            doc_hash = hashlib.sha256(unique_string.encode()).hexdigest()
+            span.set_attribute("doc.hash", doc_hash)
+            span.set_attribute("chunking.strategy", strategy)
 
         # 2. Check for duplicates (Production Safety)
         existing_doc = await self.doc_store.get_document_by_hash(doc_hash)
         if existing_doc:
-            record_ingestion(strategy, status="duplicate")
             raise DuplicateDocumentError(f"Document with hash {doc_hash} already exists.", detail={"source": source})
 
         # 3. Build Document Object
@@ -57,38 +64,44 @@ class IngestionService:
         doc = Document(content=content, hash=doc_hash, metadata=metadata)
 
         # 4. Chunk it (Offload CPU-heavy task to a thread to keep the API responsive)
-        chunks = await asyncio.to_thread(self.chunker.chunk, doc)
+        with tracer.start_as_current_span("deepvault.ingest.chunk") as span:
+            chunks = await asyncio.to_thread(self.chunker.chunk, doc)
+            span.set_attribute("chunk.count", len(chunks))
 
         # 5. Embed chunks in batch
-        chunk_contents = [c.content for c in chunks]
-        embeddings = await self.embedder.embed_batch(chunk_contents)
+        with tracer.start_as_current_span("deepvault.ingest.embed") as span:
+            chunk_contents = [c.content for c in chunks]
+            embeddings = await self.embedder.embed_batch(chunk_contents)
+            span.set_attribute("embed.count", len(embeddings))
 
         for i, chunk in enumerate(chunks):
             chunk.embedding = embeddings[i]
 
         # 6. Atomic Storage (The "Sanctity of the Index")
         # We use an inverted write strategy to prevent "Phantom Metadata"
-        try:
-            # First, commit to the Vector Store (The most volatile part)
-            await self.vector_store.upsert_chunks(chunks)
-
+        with tracer.start_as_current_span("deepvault.ingest.store") as span:
             try:
-                # Second, finalize the Metadata (The final record of truth)
-                await self.doc_store.upsert_document(doc)
-            except Exception as e:
-                # Cleanup: If Metadata fails, remove the "Orphaned" chunks from Qdrant
-                logger.error(f"Metadata write failed. Cleaning up {len(chunks)} orphaned chunks from Qdrant.")
-                await self.vector_store.delete_by_doc_id(doc.id)
-                raise IngestionError(f"Critical Metadata Fault: {str(e)}") from e
+                # First, commit to the Vector Store (The most volatile part)
+                await self.vector_store.upsert_chunks(chunks)
 
-        except Exception as e:
-            if isinstance(e, IngestionError):
-                raise
-            logger.error(f"Vector storage failed: {str(e)}")
-            raise IngestionError(f"Vector Storage Fault: {str(e)}") from e
+                try:
+                    # Second, finalize the Metadata (The final record of truth)
+                    await self.doc_store.upsert_document(doc)
+                except Exception as e:
+                    # Cleanup: If Metadata fails, remove the "Orphaned" chunks from Qdrant
+                    logger.error(f"Metadata write failed. Cleaning up {len(chunks)} orphaned chunks from Qdrant.")
+                    await self.vector_store.delete_by_doc_id(doc.id)
+                    span.record_exception(e)
+                    raise IngestionError(f"Critical Metadata Fault: {str(e)}") from e
+
+            except Exception as e:
+                if isinstance(e, IngestionError):
+                    raise
+                logger.error(f"Vector storage failed: {str(e)}")
+                span.record_exception(e)
+                raise IngestionError(f"Vector Storage Fault: {str(e)}") from e
 
         latency_ms = (time.perf_counter() - start_time) * 1000
-        record_ingestion(strategy, status="success", chunks_created=len(chunks))
         logger.info(
             f"Successfully ingested document: {source}",
             extra={

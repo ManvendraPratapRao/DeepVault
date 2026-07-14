@@ -2,7 +2,7 @@ import asyncio
 import os
 
 from app.core.models.query import QueryRequest
-from app.infrastructure.chunkers.fixed import FixedWindowChunker
+from app.infrastructure.chunkers.sliding import SlidingWindowChunker
 from app.infrastructure.embedders.bge import BgeEmbedder
 from app.infrastructure.llm.groq import GroqLLMClient
 from app.infrastructure.logging.structured import logger
@@ -19,7 +19,7 @@ async def run_verification():
 
     # 1. Initialize Infrastructure
     embedder = BgeEmbedder()
-    chunker = FixedWindowChunker(chunk_size=200, chunk_overlap=20)
+    chunker = SlidingWindowChunker(chunk_size=200, chunk_overlap=20)
 
     # Use separate test databases to avoid messing with your main ones
     test_db = "verification_test.db"

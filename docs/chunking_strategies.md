@@ -92,3 +92,10 @@ The most computationally intensive strategy. Groups sentences by embedding simil
 - **Benchmarking / ablation studies:** Fixed window provides a clean baseline.
 
 All strategies can be selected via the `CHUNKER_STRATEGY` environment variable or passed per-request in the query API.
+
+## Phase 3/4 Query Intelligence Note
+
+With the introduction of the **QueryRouter** in Phase 3, the underlying chunking strategy is even more critical. 
+- Factual queries routed to BM25 search heavily favor **Sliding Window** or **Fixed Window** chunking, as exact keywords are preserved.
+- Semantic queries perform exceptionally well with the **Semantic** and **Structure** chunkers, as the logical boundaries of the text are maintained in the vector space.
+- The `auto` retrieval strategy relies on a consistent chunking backbone (we recommend `sliding` as the default) to ensure cross-query robustness.

@@ -22,7 +22,7 @@ Usage:
 import hashlib
 import time
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 import aiosqlite
@@ -35,15 +35,17 @@ _DEFAULT_DB = "deepvault.db"
 # Active test registry
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class ABTest:
     """Defines a single A/B test configuration."""
-    name: str                       # Unique test identifier
+
+    name: str  # Unique test identifier
     description: str
-    test_type: str                  # "prompt" | "retrieval_strategy"
-    control_value: str              # e.g., "v1_prompt" or "hybrid"
-    treatment_value: str            # e.g., "v2_prompt" or "hybrid_rerank"
-    traffic_split: float = 0.5     # Fraction of traffic in treatment (0.0–1.0)
+    test_type: str  # "prompt" | "retrieval_strategy"
+    control_value: str  # e.g., "v1_prompt" or "hybrid"
+    treatment_value: str  # e.g., "v2_prompt" or "hybrid_rerank"
+    traffic_split: float = 0.5  # Fraction of traffic in treatment (0.0–1.0)
     active: bool = True
 
 
@@ -71,6 +73,7 @@ ACTIVE_TESTS: dict[str, ABTest] = {
 # ---------------------------------------------------------------------------
 # Variant assignment (deterministic by session_id)
 # ---------------------------------------------------------------------------
+
 
 def assign_variant(session_id: str, test_name: str) -> str:
     """
@@ -106,6 +109,7 @@ def get_variant_value(session_id: str, test_name: str) -> str:
 # ---------------------------------------------------------------------------
 # Results storage
 # ---------------------------------------------------------------------------
+
 
 class ABTestingService:
     """
@@ -152,8 +156,15 @@ class ABTestingService:
                 """INSERT INTO ab_test_results
                    (id, test_name, variant, session_id, metric_name, metric_value, created_at)
                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (str(uuid.uuid4()), test_name, variant, session_id,
-                 metric_name, metric_value, time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())),
+                (
+                    str(uuid.uuid4()),
+                    test_name,
+                    variant,
+                    session_id,
+                    metric_name,
+                    metric_value,
+                    time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                ),
             )
             await db.commit()
 

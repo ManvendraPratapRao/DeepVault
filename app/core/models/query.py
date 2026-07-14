@@ -29,6 +29,8 @@ class QueryRequest(BaseModel):
     retrieval_strategy: str = "vector"
     use_query_rewriting: bool = False
     filters: dict[str, Any] | None = None
+    model_name: str | None = None
+    messages: list[dict[str, str]] | None = None
 
 
 class QueryResponse(BaseModel):
@@ -39,3 +41,4 @@ class QueryResponse(BaseModel):
     usage: TokenUsage = Field(default_factory=TokenUsage)
     latency_ms: float
     request_id: str
+    low_confidence: bool = False

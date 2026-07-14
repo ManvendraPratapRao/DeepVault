@@ -70,4 +70,9 @@ class HybridRetriever(BaseRetriever):
         # Sort by the Fused Score descending
         sorted_chunks = sorted(chunk_map.values(), key=lambda c: fused_scores[c.id], reverse=True)
 
-        return sorted_chunks[:top_k]
+        final_chunks = []
+        for chunk in sorted_chunks[:top_k]:
+            chunk.score = fused_scores[chunk.id]
+            final_chunks.append(chunk)
+
+        return final_chunks

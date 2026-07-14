@@ -1,12 +1,15 @@
 from collections.abc import AsyncGenerator
 
 import groq
+import tiktoken
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from app.config import settings
 from app.core.interfaces.llm_client import BaseLLMClient
 from app.core.models.query import LLMResult, TokenUsage
 from app.infrastructure.logging.structured import logger
+
+_enc = tiktoken.get_encoding("cl100k_base")
 
 
 class GroqLLMClient(BaseLLMClient):
@@ -23,6 +26,30 @@ class GroqLLMClient(BaseLLMClient):
         self.client = groq.AsyncGroq(api_key=settings.GROQ_API_KEY)
         self.model = settings.GROQ_MODEL_NAME
 
+    def _prepare_messages(self, prompt: str, system_prompt: str | None, history: list[dict[str, str]] | None) -> list[dict]:
+        """Prepares messages ensuring strictly alternating roles for Llama-3 compatibility."""
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+            
+        if history:
+            valid_history = []
+            expected_role = "assistant"
+            # Reverse iterate last 10 messages to enforce assistant -> user sequence backwards
+            for msg in reversed(history[-10:]):
+                if msg["role"] == expected_role:
+                    valid_history.insert(0, msg)
+                    expected_role = "user" if expected_role == "assistant" else "assistant"
+            
+            # If the first message in our valid_history is "assistant", drop it
+            if valid_history and valid_history[0]["role"] == "assistant":
+                valid_history.pop(0)
+                
+            messages.extend(valid_history)
+
+        messages.append({"role": "user", "content": prompt})
+        return messages
+
     @retry(
         stop=stop_after_attempt(5),
         wait=wait_exponential(multiplier=1, min=2, max=60),
@@ -37,18 +64,15 @@ class GroqLLMClient(BaseLLMClient):
             },
         ),
     )
-    async def generate(self, prompt: str, system_prompt: str | None = None) -> LLMResult:
+    async def generate(self, prompt: str, system_prompt: str | None = None, model_name: str | None = None, history: list[dict[str, str]] | None = None) -> LLMResult:
         """Sends a single completion request to Groq with automatic retry."""
 
-        messages = []
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": prompt})
+        messages = self._prepare_messages(prompt, system_prompt, history)
 
         try:
-
+            effective_model = model_name or self.model
             completion = await self.client.chat.completions.create(
-                model=self.model,
+                model=effective_model,
                 messages=messages,  # type: ignore
                 temperature=settings.LLM_TEMPERATURE,
                 max_tokens=settings.LLM_MAX_TOKENS,
@@ -71,17 +95,15 @@ class GroqLLMClient(BaseLLMClient):
             raise
 
     async def stream(  # type: ignore[override]
-        self, prompt: str, system_prompt: str | None = None
+        self, prompt: str, system_prompt: str | None = None, model_name: str | None = None, history: list[dict[str, str]] | None = None
     ) -> AsyncGenerator[str]:  # noqa: E501
         """Streams the response token-by-token for the UI."""
-        messages = []
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": prompt})
+        messages = self._prepare_messages(prompt, system_prompt, history)
 
         try:
+            effective_model = model_name or self.model
             stream_resp = await self.client.chat.completions.create(
-                model=self.model,
+                model=effective_model,
                 messages=messages,  # type: ignore
                 temperature=settings.LLM_TEMPERATURE,
                 stream=True,
@@ -96,9 +118,8 @@ class GroqLLMClient(BaseLLMClient):
 
     async def count_tokens(self, text: str) -> int:
         """
-        Approximate token count for the current model.
-        Groq doesn't provide a direct API for this, so we use a standard
-        heuristic (chars / 4) or can integrate a library like tiktoken later.
+        Token count for the current model.
+        Groq doesn't provide a direct API for this, so we use tiktoken
+        with cl100k_base encoding as a close approximation.
         """
-        # Heuristic for Llama-3 (Better than nothing)
-        return len(text) // 4
+        return len(_enc.encode(text))

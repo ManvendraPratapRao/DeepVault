@@ -26,7 +26,11 @@ Candidates evaluated: **Groq**, **OpenAI**, **Anthropic**, **Ollama (local)**.
 
 ## Decision
 
-**Use Groq** with `llama-3.1-8b-instant` for answer generation and `llama-3.3-70b-versatile` for LLM-as-judge evaluation.
+**Use Groq** as the sole LLM provider.
+
+**Phase 4 Update (LLM Routing):** With the introduction of the `LLMRouter`, we dynamically select the model based on the query class:
+- `llama-3.1-8b-instant`: Used for `factual` queries where speed is paramount and reasoning overhead is low.
+- `llama-3.3-70b-versatile`: Used for `semantic`, `comparison`, and `complex` queries that require advanced reasoning. It is also used as the LLM-as-a-judge for evaluation.
 
 ---
 

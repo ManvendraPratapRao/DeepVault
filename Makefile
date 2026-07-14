@@ -16,9 +16,9 @@ test:
 test-cov:
 	uv run pytest --cov=app --cov-report=term-missing
 
-# Seed a single strategy: make seed CHUNKER=sliding
+# Seed a single strategy: make seed CHUNKER=recursive
 seed:
-	PYTHONPATH=. uv run python scripts/seed.py --chunker $(or $(CHUNKER),fixed)
+	PYTHONPATH=. uv run python scripts/seed.py --chunker $(or $(CHUNKER),sliding)
 
 # Run the full 4-strategy master seeding pipeline
 seed-all:

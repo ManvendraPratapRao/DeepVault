@@ -17,6 +17,7 @@ from app.services.query import QueryService
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 async def _async_gen(*tokens: str):
     """Helper: async generator that yields a fixed sequence of tokens."""
     for t in tokens:
@@ -25,8 +26,8 @@ async def _async_gen(*tokens: str):
 
 META = DocumentMetadata(source="test_doc.md")
 SAMPLE_CHUNKS = [
-    Chunk(id="c1", document_id="d1", content="DeepVault is a RAG system.", chunk_index=0, metadata=META.model_dump()),
-    Chunk(id="c2", document_id="d1", content="It uses hybrid retrieval.", chunk_index=1, metadata=META.model_dump()),
+    Chunk(id="c1", document_id="d1", content="DeepVault is a RAG system.", chunk_index=0, metadata=META.model_dump(), score=1.0),
+    Chunk(id="c2", document_id="d1", content="It uses hybrid retrieval.", chunk_index=1, metadata=META.model_dump(), score=0.9),
 ]
 
 
@@ -61,15 +62,16 @@ async def test_ask_stream_yields_tokens(mock_retriever, mock_streaming_llm):
     async for token in service.ask_stream(request):
         tokens.append(token)
 
-    assert len(tokens) == 5  # "Deep", "Vault", " is", " awesome", "."
-    assert "".join(tokens) == "DeepVault is awesome."
+    assert len(tokens) == 6  # "[SOURCES]...", "Deep", "Vault", " is", " awesome", "."
+    assert tokens[0].startswith("[SOURCES]")
+    assert "".join(tokens[1:]) == "DeepVault is awesome."
 
 
 @pytest.mark.asyncio
 async def test_ask_stream_uses_retriever(mock_retriever, mock_streaming_llm):
     """ask_stream() should call the retriever with the correct query."""
     service = QueryService(retriever=mock_retriever, llm_client=mock_streaming_llm)
-    request = QueryRequest(query_text="What is RAG?", top_k=3, chunking_strategy="fixed")
+    request = QueryRequest(query_text="What is RAG?", top_k=3, chunking_strategy="sliding")
 
     # Consume the generator
     _ = [t async for t in service.ask_stream(request)]
@@ -78,7 +80,7 @@ async def test_ask_stream_uses_retriever(mock_retriever, mock_streaming_llm):
         query="What is RAG?",
         top_k=3,
         filters=None,
-        collection_name="deepvault_fixed",
+        collection_name="deepvault_sliding",
     )
 
 
@@ -148,7 +150,7 @@ async def test_ask_stream_reranking_applied():
         query_text="Explain reranking",
         top_k=1,
         retrieval_strategy="hybrid_rerank",
-        chunking_strategy="fixed",
+        chunking_strategy="sliding",
     )
 
     _ = [t async for t in service.ask_stream(request)]

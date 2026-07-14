@@ -3,7 +3,7 @@ import uuid
 
 from app.core.interfaces.chunker import BaseChunker
 from app.core.models.document import Chunk, Document
-from app.infrastructure.chunkers.fixed import FixedWindowChunker
+from app.infrastructure.chunkers.recursive import RecursiveChunker
 from app.infrastructure.logging.structured import logger
 
 
@@ -13,10 +13,10 @@ class StructureChunker(BaseChunker):
     Each heading starts a new chunk, preserving the document's logical structure.
 
     Fallback: If no headings are found (e.g., extracted PDF text),
-    it delegates entirely to FixedWindowChunker.
+    it delegates entirely to RecursiveChunker.
 
     Overflow: If a section exceeds max_section_size, it is sub-chunked
-    using FixedWindowChunker internally.
+    using RecursiveChunker internally.
     """
 
     HEADING_PATTERN = re.compile(r"^(#{1,6})\s+(.+)", re.MULTILINE)
@@ -32,7 +32,7 @@ class StructureChunker(BaseChunker):
         self.fallback_chunk_size = fallback_chunk_size
         self.fallback_overlap = fallback_overlap
         # Pre-build the fallback chunker
-        self._fallback = FixedWindowChunker(chunk_size=fallback_chunk_size, chunk_overlap=fallback_overlap)
+        self._fallback = RecursiveChunker(chunk_size=fallback_chunk_size, chunk_overlap=fallback_overlap)
 
     def _extract_sections(self, text: str) -> list[tuple[str | None, str]]:
         """
@@ -65,8 +65,8 @@ class StructureChunker(BaseChunker):
     def chunk(self, document: Document) -> list[Chunk]:
         """
         1. Extract heading-based sections
-        2. If no headings found → fallback to FixedWindowChunker
-        3. If a section is too long → sub-chunk it with FixedWindowChunker
+        2. If no headings found → fallback to RecursiveChunker
+        3. If a section is too long → sub-chunk it with RecursiveChunker
         """
         sections = self._extract_sections(document.content)
 
@@ -74,7 +74,7 @@ class StructureChunker(BaseChunker):
         has_headings = any(heading is not None for heading, _ in sections)
 
         if not has_headings:
-            logger.info("No Markdown headings detected — falling back to FixedWindowChunker")
+            logger.info("No Markdown headings detected — falling back to RecursiveChunker")
             return self._fallback.chunk(document)
 
         # Build chunks from structured sections

@@ -11,12 +11,16 @@ class BaseLLMClient(ABC):
     """
 
     @abstractmethod
-    async def generate(self, prompt: str, system_prompt: str | None = None) -> LLMResult:
+    async def generate(
+        self, prompt: str, system_prompt: str | None = None, model_name: str | None = None, history: list[dict[str, str]] | None = None
+    ) -> LLMResult:
         """Generate a complete response with telemetry."""
         pass
 
     @abstractmethod
-    async def stream(self, prompt: str, system_prompt: str | None = None) -> AsyncGenerator[str]:
+    def stream(
+        self, prompt: str, system_prompt: str | None = None, model_name: str | None = None, history: list[dict[str, str]] | None = None
+    ) -> AsyncGenerator[str]:
         """Stream a response token by token."""
         pass
 
