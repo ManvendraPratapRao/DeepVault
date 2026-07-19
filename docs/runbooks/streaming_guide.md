@@ -149,7 +149,7 @@ Once implemented:
 ```bash
 curl -X POST "http://localhost:8000/api/v1/stream" \
   -H "Content-Type: application/json" \
-  -H "X-API-KEY: deepvault_secret_key" \
+  -H "X-API-KEY: $API_KEY" \
   -d '{"query_text": "What is Retrieval-Augmented Generation?", "top_k": 5}' \
   --no-buffer
 ```

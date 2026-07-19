@@ -23,7 +23,7 @@ All endpoints are protected by the `X-API-KEY` header:
 
 ```bash
 curl -X POST "http://localhost:8000/api/v1/query" \
-  -H "X-API-KEY: deepvault_secret_key" \
+  -H "X-API-KEY: $API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"query_text": "..."}'
 ```

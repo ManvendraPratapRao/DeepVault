@@ -56,6 +56,37 @@ class RedisCache:
         except Exception as e:
             logger.warning(f"Redis DELETE failed for key {key}: {str(e)}")
 
+    async def incr(self, key: str) -> int:
+        """
+        Atomically increments the integer value of `key` by 1.
+        Returns the new value, or 0 if Redis is unavailable.
+
+        Used by RateLimiter to implement race-free request counting.
+        Redis INCR is indivisible — no two callers can race on the same key.
+        """
+        if not self.client:
+            return 0
+        try:
+            return int(await self.client.incr(key))
+        except Exception as e:
+            logger.warning(f"Redis INCR failed for key {key}: {str(e)}")
+            return 0
+
+    async def expire(self, key: str, seconds: int) -> bool:
+        """
+        Sets a TTL on `key`. Returns True if successful, False otherwise.
+
+        Used by RateLimiter to start the fixed-window countdown after the
+        first request in a new window.
+        """
+        if not self.client:
+            return False
+        try:
+            return bool(await self.client.expire(key, seconds))
+        except Exception as e:
+            logger.warning(f"Redis EXPIRE failed for key {key}: {str(e)}")
+            return False
+
     async def ping(self) -> bool:
         """Direct health ping."""
         if not self.client:

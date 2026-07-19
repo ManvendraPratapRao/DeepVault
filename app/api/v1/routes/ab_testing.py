@@ -36,4 +36,3 @@ async def get_active_tests(
     Returns the list of currently active A/B tests and their configurations.
     """
     return await service.list_active_tests()
-

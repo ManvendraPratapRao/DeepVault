@@ -6,7 +6,7 @@ The DeepVault API is versioned under `/api/v1` and secured via an API Key.
 
 All protected endpoints require the `X-API-KEY` header.
 - **Header:** `X-API-KEY: <your_secret_key>`
-- **Default Key:** `deepvault_secret_key` (configured in `.env` or `app/config.py`)
+- **Configuration:** Set `API_KEY` in your `.env` file (required — no default)
 
 ## Core Endpoints
 

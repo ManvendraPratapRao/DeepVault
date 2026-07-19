@@ -23,7 +23,7 @@ class BM25Retriever(BaseRetriever):
 
     def _tokenize(self, text: str) -> list[str]:
         # Basic lowercase tokenization by word boundary for BM25
-        return re.sub(r"[^\w\s]", "", str(text).lower()).split()
+        return re.sub(r"[^\w\s]", "", text.lower()).split()
 
     async def initialize(self, collection_name: str) -> None:
         """
@@ -52,16 +52,24 @@ class BM25Retriever(BaseRetriever):
                     )
 
                     for record in records:
-                        metadata_dict = record.payload.get("metadata", {}) if record.payload else {}
-                        meta = (
-                            DocumentMetadata(**metadata_dict) if metadata_dict else DocumentMetadata(source="unknown")
-                        )
+                        # Qdrant payload stores metadata fields FLAT at the top level:
+                        # {document_id, content, chunk_index, source, author, ...}
+                        # (see QdrantVectorStore.upsert_chunks which uses **chunk.metadata)
+                        payload = record.payload or {}
+                        skip_keys = {"document_id", "content", "chunk_index"}
+                        meta_dict = {k: v for k, v in payload.items() if k not in skip_keys}
+
+                        try:
+                            meta = DocumentMetadata(**meta_dict) if meta_dict else DocumentMetadata(source="unknown")
+                        except Exception as meta_err:
+                            logger.debug(f"DocumentMetadata parse fallback: {meta_err}")
+                            meta = DocumentMetadata(source=str(meta_dict.get("source", "unknown")))
 
                         chunk = Chunk(
                             id=str(record.id),
-                            document_id=record.payload.get("document_id", "unknown") if record.payload else "unknown",
-                            content=record.payload.get("content", "") if record.payload else "",
-                            chunk_index=record.payload.get("chunk_index", 0) if record.payload else 0,
+                            document_id=payload.get("document_id", "unknown"),
+                            content=payload.get("content", ""),
+                            chunk_index=payload.get("chunk_index", 0),
                             metadata=meta.model_dump(),
                         )
                         chunks.append(chunk)
@@ -117,7 +125,4 @@ class BM25Retriever(BaseRetriever):
                     continue
             results.append(chunk)
 
-        # Inject BM25 score proxy (we recalculate just for metadata)
-        self._indexes[collection_name].get_scores(tokenized_query)
-        # Finding the exact score for chunk is complex with Okapi, we just return the nodes
         return results

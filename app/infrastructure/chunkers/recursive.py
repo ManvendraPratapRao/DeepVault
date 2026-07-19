@@ -67,13 +67,13 @@ class RecursiveChunker(BaseChunker):
 
         for s in good_splits:
             s_len = len(s)
-            
+
             # If a single split is STILL too large, we need to recurse on it
             if s_len > self.chunk_size and new_separators:
                 # Flush what we have so far
                 _merge_current_chunk()
                 current_length = 0
-                
+
                 # Recurse on this big split
                 recursive_chunks = self._split_text(s, new_separators)
                 final_chunks.extend(recursive_chunks)
@@ -100,21 +100,21 @@ class RecursiveChunker(BaseChunker):
             return splits
 
         overlapped_chunks = [splits[0]]
-        
+
         for i in range(1, len(splits)):
             current = splits[i]
-            previous = splits[i-1]
-            
+            previous = splits[i - 1]
+
             # Grab up to `chunk_overlap` characters from the end of the previous chunk
             # but try to snap to a word boundary (space) if possible so we don't chop words
-            overlap_text = previous[-self.chunk_overlap:]
+            overlap_text = previous[-self.chunk_overlap :]
             space_idx = overlap_text.find(" ")
-            
+
             if space_idx != -1 and space_idx < len(overlap_text) - 1:
-                overlap_text = overlap_text[space_idx+1:]
-                
+                overlap_text = overlap_text[space_idx + 1 :]
+
             overlapped_chunks.append(f"{overlap_text} {current}".strip())
-            
+
         return overlapped_chunks
 
     def chunk(self, document: Document) -> list[Chunk]:
@@ -127,7 +127,7 @@ class RecursiveChunker(BaseChunker):
 
         # 1. Get the base splits using the recursive strategy
         base_splits = self._split_text(text, self.separators)
-        
+
         # 2. Apply overlap between the chunks
         final_texts = self._apply_overlap(base_splits)
 

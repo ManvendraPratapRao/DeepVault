@@ -1,13 +1,9 @@
-
 import asyncio
 import hashlib
 import time
 from pathlib import Path
 
 from opentelemetry import trace
-
-tracer = trace.get_tracer(__name__)
-
 
 from app.core.exceptions import DuplicateDocumentError, IngestionError
 from app.core.interfaces.chunker import BaseChunker
@@ -16,6 +12,8 @@ from app.core.interfaces.embedder import BaseEmbedder
 from app.core.interfaces.vector_store import BaseVectorStore
 from app.core.models.document import Document, DocumentMetadata
 from app.infrastructure.logging.structured import logger
+
+tracer = trace.get_tracer(__name__)
 
 
 class IngestionService:

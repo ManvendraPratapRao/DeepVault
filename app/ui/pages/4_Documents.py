@@ -8,8 +8,13 @@ Phase 4 feature. Allows users to:
 - Delete documents (by document ID)
 """
 
+import os
+
 import requests
 import streamlit as st
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # ---------------------------------------------------------------------------
 # Page config
@@ -22,7 +27,11 @@ st.set_page_config(
 )
 
 API_BASE = "http://localhost:8000/api/v1"
-API_KEY = "deepvault_secret_key"
+# Read from Streamlit secrets (production) or env var (local dev).
+try:
+    API_KEY = st.secrets.get("API_KEY", os.environ.get("API_KEY", ""))
+except Exception:
+    API_KEY = os.environ.get("API_KEY", "")
 HEADERS = {"X-API-KEY": API_KEY, "Content-Type": "application/json"}
 
 # ---------------------------------------------------------------------------
@@ -114,10 +123,12 @@ with tab_ingest:
                         )
                         if resp.status_code == 200:
                             result = resp.json()
-                            status.update(label=f"✅ Successfully created {result.get('chunk_count', '?')} chunks!", state="complete", expanded=False)
-                            st.success(
-                                f"Created **{result.get('chunk_count', '?')}** chunks from `{source_name}`"
+                            status.update(
+                                label=f"✅ Successfully created {result.get('chunk_count', '?')} chunks!",
+                                state="complete",
+                                expanded=False,
                             )
+                            st.success(f"Created **{result.get('chunk_count', '?')}** chunks from `{source_name}`")
                             st.balloons()
                         elif resp.status_code == 409:
                             status.update(label="Duplicate detected", state="error", expanded=False)

@@ -26,12 +26,14 @@ class GroqLLMClient(BaseLLMClient):
         self.client = groq.AsyncGroq(api_key=settings.GROQ_API_KEY)
         self.model = settings.GROQ_MODEL_NAME
 
-    def _prepare_messages(self, prompt: str, system_prompt: str | None, history: list[dict[str, str]] | None) -> list[dict]:
+    def _prepare_messages(
+        self, prompt: str, system_prompt: str | None, history: list[dict[str, str]] | None
+    ) -> list[dict]:
         """Prepares messages ensuring strictly alternating roles for Llama-3 compatibility."""
         messages = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
-            
+
         if history:
             valid_history = []
             expected_role = "assistant"
@@ -40,11 +42,11 @@ class GroqLLMClient(BaseLLMClient):
                 if msg["role"] == expected_role:
                     valid_history.insert(0, msg)
                     expected_role = "user" if expected_role == "assistant" else "assistant"
-            
+
             # If the first message in our valid_history is "assistant", drop it
             if valid_history and valid_history[0]["role"] == "assistant":
                 valid_history.pop(0)
-                
+
             messages.extend(valid_history)
 
         messages.append({"role": "user", "content": prompt})
@@ -64,7 +66,13 @@ class GroqLLMClient(BaseLLMClient):
             },
         ),
     )
-    async def generate(self, prompt: str, system_prompt: str | None = None, model_name: str | None = None, history: list[dict[str, str]] | None = None) -> LLMResult:
+    async def generate(
+        self,
+        prompt: str,
+        system_prompt: str | None = None,
+        model_name: str | None = None,
+        history: list[dict[str, str]] | None = None,
+    ) -> LLMResult:
         """Sends a single completion request to Groq with automatic retry."""
 
         messages = self._prepare_messages(prompt, system_prompt, history)
@@ -95,7 +103,11 @@ class GroqLLMClient(BaseLLMClient):
             raise
 
     async def stream(  # type: ignore[override]
-        self, prompt: str, system_prompt: str | None = None, model_name: str | None = None, history: list[dict[str, str]] | None = None
+        self,
+        prompt: str,
+        system_prompt: str | None = None,
+        model_name: str | None = None,
+        history: list[dict[str, str]] | None = None,
     ) -> AsyncGenerator[str]:  # noqa: E501
         """Streams the response token-by-token for the UI."""
         messages = self._prepare_messages(prompt, system_prompt, history)

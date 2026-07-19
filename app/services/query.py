@@ -1,3 +1,5 @@
+import asyncio
+import json
 import time
 
 from opentelemetry import trace
@@ -17,6 +19,7 @@ from app.infrastructure.logging.structured import logger
 from app.infrastructure.query.decomposer import QueryDecomposer
 from app.infrastructure.query.router import QueryRouter
 from app.prompts.v1 import RAG_SYSTEM_PROMPT, RAG_USER_TEMPLATE
+from app.services.ab_testing import ABTestingService, get_variant_value
 from app.services.cache_service import CacheService
 
 
@@ -43,6 +46,7 @@ class QueryService:
         router: QueryRouter | None = None,
         decomposer: QueryDecomposer | None = None,
         llm_router: LLMRouter | None = None,
+        ab_testing_service: ABTestingService | None = None,
     ):
         self.retriever = retriever
         self.llm_client = llm_client
@@ -52,6 +56,7 @@ class QueryService:
         self.router = router
         self.decomposer = decomposer
         self.llm_router = llm_router
+        self.ab_testing_service = ab_testing_service
 
     async def _prepare_rag_context(self, request: QueryRequest, request_id: str) -> tuple[list, str, str | None, str | None, str]:
         """
@@ -165,6 +170,19 @@ class QueryService:
     async def ask(self, request: QueryRequest, request_id: str = "internal") -> QueryResponse:
         start_time = time.perf_counter()
         logger.info(f"Processing query: {request.query_text[:50]}...", extra={"extra_fields": {"request_id": request_id}})
+        
+        system_prompt = RAG_SYSTEM_PROMPT
+        if self.ab_testing_service and request.session_id:
+            # 1. Retrieval Strategy A/B Test
+            retrieval_variant = get_variant_value(request.session_id, "rerank_vs_hybrid")
+            if retrieval_variant:
+                request.retrieval_strategy = retrieval_variant
+                
+            # 2. Prompt Variant A/B Test
+            prompt_variant = get_variant_value(request.session_id, "prompt_v3_test")
+            if prompt_variant == "v3":
+                from app.prompts.v3.system import RAG_SYSTEM_PROMPT as V3_PROMPT
+                system_prompt = V3_PROMPT
 
         if self.cache_service and not request.messages:
             with tracer.start_as_current_span("deepvault.query.cache_check") as span:
@@ -188,7 +206,7 @@ class QueryService:
         with tracer.start_as_current_span("deepvault.query.generate") as span:
             span.set_attribute("generate.model", model_name or "default")
             span.set_attribute("generate.prompt_length", len(final_user_prompt))
-            llm_result = await self.llm_client.generate(prompt=final_user_prompt, system_prompt=RAG_SYSTEM_PROMPT, model_name=model_name, history=request.messages)
+            llm_result = await self.llm_client.generate(prompt=final_user_prompt, system_prompt=system_prompt, model_name=model_name, history=request.messages)
             span.set_attribute("generate.answer_length", len(llm_result.answer))
             span.set_attribute("generate.prompt_tokens", llm_result.usage.prompt_tokens)
             span.set_attribute("generate.completion_tokens", llm_result.usage.completion_tokens)
@@ -201,16 +219,37 @@ class QueryService:
         if self.cache_service and not request.messages:
             with tracer.start_as_current_span("deepvault.query.cache_write"):
                 await self.cache_service.cache_response(request.query_text, response)
+                
+        if self.ab_testing_service and request.session_id:
+            # Record latency for the prompt test variant
+            prompt_variant = get_variant_value(request.session_id, "prompt_v3_test")
+            if prompt_variant:
+                asyncio.create_task(self.ab_testing_service.record_result(
+                    "prompt_v3_test", prompt_variant, "latency", latency_ms, request.session_id
+                ))
+            
+            # Record latency for the retrieval test variant
+            retrieval_variant = get_variant_value(request.session_id, "rerank_vs_hybrid")
+            if retrieval_variant:
+                asyncio.create_task(self.ab_testing_service.record_result(
+                    "rerank_vs_hybrid", retrieval_variant, "latency", latency_ms, request.session_id
+                ))
 
         return response
 
     async def ask_stream(self, request: QueryRequest, request_id: str = "internal"):
-        import asyncio
-        import json
-
-        from app.core.models.query import TokenUsage
-
         start_time = time.perf_counter()
+        
+        system_prompt = RAG_SYSTEM_PROMPT
+        if self.ab_testing_service and request.session_id:
+            retrieval_variant = get_variant_value(request.session_id, "rerank_vs_hybrid")
+            if retrieval_variant:
+                request.retrieval_strategy = retrieval_variant
+                
+            prompt_variant = get_variant_value(request.session_id, "prompt_v3_test")
+            if prompt_variant == "v3":
+                from app.prompts.v3.system import RAG_SYSTEM_PROMPT as V3_PROMPT
+                system_prompt = V3_PROMPT
 
         if self.cache_service and not request.messages:
             cached = await self.cache_service.get_cached_response(request.query_text)
@@ -232,11 +271,27 @@ class QueryService:
         yield f"[SOURCES] {json.dumps(sources_payload)}\n"
 
         accumulated = ""
-        async for token in self.llm_client.stream(prompt=final_user_prompt, system_prompt=RAG_SYSTEM_PROMPT, model_name=model_name, history=request.messages):
+        async for token in self.llm_client.stream(prompt=final_user_prompt, system_prompt=system_prompt, model_name=model_name, history=request.messages):
             accumulated += token
             yield token
 
-        if self.cache_service and accumulated and not request.messages:
+        if accumulated and not request.messages:
             latency_ms = (time.perf_counter() - start_time) * 1000
-            full_response = QueryResponse(answer=accumulated, sources=chunks, usage=TokenUsage(prompt_tokens=0, completion_tokens=0, total_tokens=0), latency_ms=latency_ms, request_id=request_id)
-            asyncio.create_task(self.cache_service.cache_response(request.query_text, full_response))
+            
+            # Cache the response
+            if self.cache_service:
+                full_response = QueryResponse(answer=accumulated, sources=chunks, usage=TokenUsage(prompt_tokens=0, completion_tokens=0, total_tokens=0), latency_ms=latency_ms, request_id=request_id)
+                asyncio.create_task(self.cache_service.cache_response(request.query_text, full_response))
+            
+            # Record A/B Testing latency
+            if self.ab_testing_service and request.session_id:
+                prompt_variant = get_variant_value(request.session_id, "prompt_v3_test")
+                if prompt_variant:
+                    asyncio.create_task(self.ab_testing_service.record_result(
+                        "prompt_v3_test", prompt_variant, "latency", latency_ms, request.session_id
+                    ))
+                retrieval_variant = get_variant_value(request.session_id, "rerank_vs_hybrid")
+                if retrieval_variant:
+                    asyncio.create_task(self.ab_testing_service.record_result(
+                        "rerank_vs_hybrid", retrieval_variant, "latency", latency_ms, request.session_id
+                    ))

@@ -137,7 +137,7 @@ class TestQueryRoute:
         response = client.post(
             "/api/v1/query",
             json={"top_k": 5},
-            headers={"X-API-KEY": "deepvault_secret_key"},
+            headers={"X-API-KEY": "dv-test-only-not-a-real-secret-abc123"},
         )
         assert response.status_code == 422
 
@@ -146,7 +146,7 @@ class TestQueryRoute:
         response = client.post(
             "/api/v1/query",
             json={"query_text": "What is RAG?", "top_k": 0},
-            headers={"X-API-KEY": "deepvault_secret_key"},
+            headers={"X-API-KEY": "dv-test-only-not-a-real-secret-abc123"},
         )
         assert response.status_code == 422
 
@@ -155,7 +155,7 @@ class TestQueryRoute:
         response = client.post(
             "/api/v1/query",
             json={"query_text": "What is DeepVault?", "top_k": 5},
-            headers={"X-API-KEY": "deepvault_secret_key"},
+            headers={"X-API-KEY": "dv-test-only-not-a-real-secret-abc123"},
         )
         assert response.status_code == 200
         data = response.json()
@@ -168,7 +168,7 @@ class TestQueryRoute:
         response = client.post(
             "/api/v1/query",
             json={"query_text": "test", "top_k": 3, "retrieval_strategy": "hybrid"},
-            headers={"X-API-KEY": "deepvault_secret_key"},
+            headers={"X-API-KEY": "dv-test-only-not-a-real-secret-abc123"},
         )
         assert response.status_code == 200
 
@@ -177,7 +177,7 @@ class TestQueryRoute:
         response = client.post(
             "/api/v1/query",
             json={"query_text": "test rewrite", "top_k": 3, "use_query_rewriting": True},
-            headers={"X-API-KEY": "deepvault_secret_key"},
+            headers={"X-API-KEY": "dv-test-only-not-a-real-secret-abc123"},
         )
         assert response.status_code == 200
 
@@ -193,7 +193,7 @@ class TestIngestRoutes:
         response = client.post(
             "/api/v1/documents/text",
             json={"content": "Hello World"},
-            headers={"X-API-KEY": "deepvault_secret_key"},
+            headers={"X-API-KEY": "dv-test-only-not-a-real-secret-abc123"},
         )
         assert response.status_code == 422
 
@@ -202,7 +202,7 @@ class TestIngestRoutes:
         response = client.post(
             "/api/v1/documents/text",
             json={"source": "test.md"},
-            headers={"X-API-KEY": "deepvault_secret_key"},
+            headers={"X-API-KEY": "dv-test-only-not-a-real-secret-abc123"},
         )
         assert response.status_code == 422
 

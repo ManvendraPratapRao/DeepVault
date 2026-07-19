@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 from datetime import datetime
 from pathlib import Path
@@ -18,19 +19,9 @@ st.set_page_config(
 
 EVAL_RUNS_DIR = Path("data/eval_runs")
 DOCS_BENCHMARKS_DIR = Path("docs/benchmarks")
-ENV_FILE = Path(".env")
 
-
-# --- Load Environment (for Password) ---
-def get_admin_password():
-    if ENV_FILE.exists():
-        with open(ENV_FILE) as f:
-            for line in f:
-                if line.startswith("EVAL_ADMIN_PASSWORD="):
-                    return line.split("=")[1].strip()
-    return "deepvault_admin_2024"  # Fallback
-
-ADMIN_PASSWORD = get_admin_password()
+# Read admin password from environment (set in .env) — no hardcoded fallback.
+ADMIN_PASSWORD = os.environ.get("EVAL_ADMIN_PASSWORD", "")
 
 # --- Custom Styling ---
 st.markdown(
@@ -89,17 +80,21 @@ with st.sidebar:
         st.markdown("**Warning: Costs API Credits**")
         run_id = st.text_input("Run ID", value=f"eval_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
         q_limit = st.number_input("Questions per Strategy Limit (0 for all)", min_value=0, value=25)
-        
+
         chunk_strats = st.multiselect(
             "Chunking Strategies",
             ["sliding", "recursive", "structure", "semantic"],
             default=["sliding", "recursive", "structure", "semantic"],
         )
-        
+
         all_r_opts = ["vector", "hybrid", "hybrid_rerank", "vector_rewrite", "hybrid_rewrite", "hybrid_rerank_rewrite"]
         r_strats = st.multiselect("Retrieval Strategies", all_r_opts, default=["vector"])
 
-        gen_model = st.selectbox("Generator Model", ["groq/llama-3.1-8b-instant", "groq/llama-3.3-70b-versatile", "groq/qwen/qwen3-32b"], index=1)
+        gen_model = st.selectbox(
+            "Generator Model",
+            ["groq/llama-3.1-8b-instant", "groq/llama-3.3-70b-versatile", "groq/qwen/qwen3-32b"],
+            index=1,
+        )
         judge_model = st.selectbox("Judge Model", ["groq/llama-3.3-70b-versatile", "groq/qwen/qwen3-32b"], index=0)
 
         pwd = st.text_input("Admin Password", type="password")
@@ -118,7 +113,7 @@ with st.sidebar:
                         cmd.extend(["--generator", gen_model])
                     if judge_model:
                         cmd.extend(["--judge", judge_model])
-                    
+
                     # Spawn in background
                     subprocess.Popen(cmd)
                     st.success(f"Evaluation '{run_id}' started in the background! Please check the terminal for logs.")
@@ -147,21 +142,23 @@ rows = []
 for combo, data in summary_data.items():
     ret = data.get("custom_retrieval", {})
     ragas = data.get("ragas", {})
-    
-    rows.append({
-        "Strategy": combo,
-        "Hit Rate": ret.get("hit_rate", 0),
-        "MRR": ret.get("mrr", 0),
-        "Precision": ret.get("precision", 0),
-        "Latency P50 (ms)": ret.get("latency_p50_ms", 0),
-        "Latency P95 (ms)": ret.get("latency_p95_ms", 0),
-        "Context Precision": ragas.get("context_precision") or 0.0,
-        "Context Recall": ragas.get("context_recall") or 0.0,
-        "Faithfulness": ragas.get("faithfulness") or 0.0,
-        "Answer Relevancy": ragas.get("answer_relevancy") or 0.0,
-        "Answer Correctness": ragas.get("answer_correctness") or 0.0,
-        "Score": (ret.get("hit_rate", 0) + (ragas.get("answer_correctness") or 0.0))
-    })
+
+    rows.append(
+        {
+            "Strategy": combo,
+            "Hit Rate": ret.get("hit_rate", 0),
+            "MRR": ret.get("mrr", 0),
+            "Precision": ret.get("precision", 0),
+            "Latency P50 (ms)": ret.get("latency_p50_ms", 0),
+            "Latency P95 (ms)": ret.get("latency_p95_ms", 0),
+            "Context Precision": ragas.get("context_precision") or 0.0,
+            "Context Recall": ragas.get("context_recall") or 0.0,
+            "Faithfulness": ragas.get("faithfulness") or 0.0,
+            "Answer Relevancy": ragas.get("answer_relevancy") or 0.0,
+            "Answer Correctness": ragas.get("answer_correctness") or 0.0,
+            "Score": (ret.get("hit_rate", 0) + (ragas.get("answer_correctness") or 0.0)),
+        }
+    )
 
 df = pd.DataFrame(rows)
 if df.empty:
@@ -178,17 +175,15 @@ pdf_path = DOCS_BENCHMARKS_DIR / f"{selected_run}.pdf"
 # We must ensure the MD is generated if we have a summary.json
 if not md_path.exists():
     from scripts.eval.report import generate_markdown_report
+
     generate_markdown_report(selected_run, summary_data)
 
 with col1:
     with open(md_path, encoding="utf-8") as f:
         st.download_button(
-            label="📄 Download Markdown Report",
-            data=f.read(),
-            file_name=md_path.name,
-            mime="text/markdown"
+            label="📄 Download Markdown Report", data=f.read(), file_name=md_path.name, mime="text/markdown"
         )
-        
+
 with col2:
     if st.button("📑 Generate & Download PDF Report"):
         with st.spinner("Rendering PDF via xhtml2pdf (Dark Mode)..."):
@@ -199,7 +194,7 @@ with col2:
                         label="⬇️ Click here to Download PDF",
                         data=pdf_file.read(),
                         file_name=pdf_path.name,
-                        mime="application/pdf"
+                        mime="application/pdf",
                     )
             except Exception as e:
                 st.error(f"Failed to generate PDF: {e}")

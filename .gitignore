@@ -12,8 +12,13 @@ scratch/
 # Virtual Environment
 .venv/
 
-# Environment Secrets
+# Environment Secrets — never commit real credentials
+# Use .env.example (no secrets) as a template for contributors
 .env
+
+# Runtime logs — generated at startup, not source artifacts
+*.log
+api_startup.log
 
 # Databases (regenerated at runtime)
 *.db

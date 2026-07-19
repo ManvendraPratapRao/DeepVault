@@ -21,9 +21,9 @@ from app.core.models.query import QueryRequest
 from app.dependencies import get_query_service
 from app.services.query import QueryService
 
-router = APIRouter()
-
 from app.api.dependencies import rate_limit_dependency
+
+router = APIRouter()
 
 
 @router.post(
@@ -47,7 +47,7 @@ async def stream_query(
 
     Usage with curl:
         curl -X POST http://localhost:8000/api/v1/stream \\
-             -H "X-API-KEY: deepvault_secret_key" \\
+             -H "X-API-KEY: $API_KEY" \\
              -H "Content-Type: application/json" \\
              -d '{"query_text": "What is RAG?", "top_k": 5}' --no-buffer
     """

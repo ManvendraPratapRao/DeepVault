@@ -2,12 +2,16 @@
 Fixed-window rate limiter backed by Redis.
 
 Implementation note:
-  This uses a simple Redis counter with a TTL as the rate-limiting window.
-  It is technically a fixed-window limiter, not a true sliding window.
-  A true sliding window (using Redis sorted sets) would prevent bursting
-  at window boundaries but adds complexity. The current approach is the
-  industry standard for non-critical rate limiting and is sufficient for
-  our use case.
+  This uses Redis INCR (atomic increment) + EXPIRE to implement a fixed-window
+  counter. INCR is a single, indivisible server-side operation — no two clients
+  can race on the same counter, unlike the previous GET→conditional-SET pattern
+  which was vulnerable to a TOCTOU race (two workers could both read count=N,
+  both pass the check, and both write N+1).
+
+  Redis guarantees:
+    1. INCR returns the new value atomically.
+    2. We set EXPIRE only on the first request in a window (when count == 1)
+       so the TTL is not reset on every hit.
 
 Fail-open design:
   If Redis is unavailable, rate limiting is silently bypassed rather
@@ -28,15 +32,17 @@ from app.infrastructure.logging.structured import logger
 
 class RateLimiter:
     """
-    Fixed-window rate limiter.
+    Fixed-window rate limiter using atomic Redis INCR.
 
     Usage:
         limiter = RateLimiter(redis_cache, requests_per_minute=60)
         await limiter.check_rate_limit("my-api-key")
 
-    The limiter stores a Redis counter with a TTL equal to the window size.
-    Each call increments the counter; if it exceeds the limit, an HTTP 429
-    is raised. The counter naturally expires after the window (TTL = 60s).
+    How it works:
+        1. INCR the key — returns the new count atomically (race-free).
+        2. If count == 1 (first request in window), set EXPIRE = window_sec.
+           We only set TTL once so the window doesn't slide on each hit.
+        3. If count > limit, raise 429.
     """
 
     def __init__(self, redis: RedisCache, requests_per_minute: int = 60) -> None:
@@ -54,10 +60,17 @@ class RateLimiter:
         key = f"ratelimit:{identifier}"
         window_sec = 60
 
-        redis_val = await self.redis.get(key)
-        count = int(redis_val) if redis_val else 0
+        # Atomic increment — a single Redis round-trip, no race condition possible
+        count = await self.redis.incr(key)
 
-        if count >= self.requests_per_minute:
+        # Set TTL only on the first request of each window.
+        # Subsequent requests must NOT reset the TTL — that would allow a
+        # client to keep the window open indefinitely by hitting the API
+        # continuously, effectively bypassing the rate limit.
+        if count == 1:
+            await self.redis.expire(key, window_sec)
+
+        if count > self.requests_per_minute:
             logger.warning(
                 f"Rate limit exceeded for {identifier[:8]}***",
                 extra={"extra_fields": {"identifier": identifier[:8], "count": count}},
@@ -69,5 +82,3 @@ class RateLimiter:
                     "Please slow down or contact support for a higher quota."
                 ),
             )
-
-        await self.redis.set(key, str(count + 1), ttl_seconds=window_sec)

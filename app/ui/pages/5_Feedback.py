@@ -10,8 +10,13 @@ Shows:
 - A/B test results summary
 """
 
+import os
+
 import requests
 import streamlit as st
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # ---------------------------------------------------------------------------
 # Page config
@@ -24,7 +29,12 @@ st.set_page_config(
 )
 
 API_BASE = "http://localhost:8000/api/v1"
-API_KEY = "deepvault_secret_key"
+# Read from Streamlit secrets (production) or env var (local dev).
+# Never hard-code credentials in source files.
+try:
+    API_KEY = st.secrets.get("API_KEY", os.environ.get("API_KEY", ""))
+except Exception:
+    API_KEY = os.environ.get("API_KEY", "")
 HEADERS = {"X-API-KEY": API_KEY}
 
 # ---------------------------------------------------------------------------

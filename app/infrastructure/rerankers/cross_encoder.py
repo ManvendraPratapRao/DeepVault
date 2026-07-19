@@ -1,10 +1,22 @@
 import asyncio
+import math
+from typing import cast
+
+import numpy as np
 
 from sentence_transformers import CrossEncoder
 
 from app.core.interfaces.reranker import BaseReranker
 from app.core.models.document import Chunk
 from app.infrastructure.logging.structured import logger
+
+
+def _sigmoid(logit: float) -> float:
+    """Helper to normalise logits to [0, 1]."""
+    if logit >= 0:
+        return 1.0 / (1.0 + math.exp(-logit))
+    exp_val = math.exp(logit)
+    return exp_val / (1.0 + exp_val)
 
 
 class CrossEncoderReranker(BaseReranker):
@@ -32,23 +44,32 @@ class CrossEncoderReranker(BaseReranker):
 
         try:
             # We predict synchronously, offload to thread to prevent blocking the async loop
-            # ms-marco models output raw logits, we don't necessarily need sigmoid
-            scores = await asyncio.to_thread(self.encoder.predict, pairs)
+            _raw = await asyncio.to_thread(self.encoder.predict, pairs)
+            # Cast to ndarray: sentence_transformers' type stubs declare a broad
+            # return union (Tensor | ndarray | list[Tensor]) that confuses pyright,
+            # but predict() always returns a numpy array or scalar at runtime.
+            raw_scores = cast(np.ndarray, _raw)
 
-            # Pair each chunk with its new score
-            scored_chunks = list(zip(chunks, scores, strict=False))
+            # BUG FIX: encoder.predict() returns a 0-d numpy scalar when given a
+            # single pair (e.g. np.float32(9.84)). A 0-d array is not iterable,
+            # causing `zip(chunks, scores)` to raise TypeError. atleast_1d()
+            # guarantees we always have a 1-d array regardless of input count.
+            scores = np.atleast_1d(raw_scores)
 
-            # Sort descending by score
+            # Pair each chunk with its normalised [0, 1] probability score
+            scored_chunks = [(chunk, _sigmoid(float(s))) for chunk, s in zip(chunks, scores)]
+
+            # Sort descending by normalised probability
             scored_chunks.sort(key=lambda x: x[1], reverse=True)
 
             logger.info(f"Cross-Encoder successfully reranked {len(chunks)} chunks.")
 
-            # Update chunks with their new precise scores and return top_k
+            # Assign final scores and return top_k
             final_chunks = []
-            for chunk, score in scored_chunks[:top_k]:
-                chunk.score = float(score)  # Convert numpy float to native float
+            for chunk, prob in scored_chunks[:top_k]:
+                chunk.score = (prob)
                 final_chunks.append(chunk)
-                
+
             return final_chunks
 
         except Exception as e:

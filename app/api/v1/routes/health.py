@@ -44,10 +44,9 @@ async def health_check(redis_cache: RedisCache = Depends(get_redis_cache)) -> He
         version=settings.VERSION,
         uptime_seconds=time.time() - _start_time,
         components={
-            "sqlite": "connected",
-            "qdrant": "connected",
-            "groq": "ready",
             "redis": "connected" if redis_status else "disconnected",
+            # SQLite and Qdrant are NOT probed in the liveness check —
+            # use /health/detailed for full readiness verification.
         },
     )
 

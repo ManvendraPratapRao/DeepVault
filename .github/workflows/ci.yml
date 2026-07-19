@@ -7,8 +7,82 @@ on:
     branches: [ "main" ]
 
 jobs:
+  # ---------------------------------------------------------------------------
+  # Job 1: Lint, type-check, and unit tests (no infrastructure required)
+  # Runs on every push/PR — fast, < 2 min.
+  # ---------------------------------------------------------------------------
   test:
+    name: Lint + Type Check + Unit Tests
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Sync dependencies (including dev group)
+        run: uv sync --frozen
+
+      - name: Check Formatting (Ruff)
+        run: uv run ruff format --check app/ tests/ scripts/
+
+      - name: Lint (Ruff)
+        run: uv run ruff check app/ tests/ scripts/
+
+      - name: Type checking (mypy)
+        run: uv run mypy app/
+
+      - name: Unit + API Tests with Coverage
+        # API_KEY is also injected via pytest-env in pyproject.toml,
+        # but we set it here too for belt-and-suspenders.
+        run: |
+          uv run pytest -v --tb=short \
+            --cov=app \
+            --cov-report=term-missing \
+            --cov-fail-under=55
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          API_KEY: "dv-ci-test-key-not-a-real-secret"
+
+      - name: Build Docker Image
+        run: docker compose -f docker/docker-compose.yml build deepvault-api
+
+  # ---------------------------------------------------------------------------
+  # Job 2: Integration Tests (spins up Redis + Qdrant via Docker Compose)
+  # Only runs on pushes to main, not on every PR (to save CI minutes).
+  # ---------------------------------------------------------------------------
+  integration:
+    name: Integration Tests (Redis + Qdrant)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: test   # only run if unit tests pass
+
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      qdrant:
+        image: qdrant/qdrant:v1.13.6
+        ports:
+          - 6333:6333
+        options: >-
+          --health-cmd "wget --quiet --tries=1 --spider http://localhost:6333/readyz || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - uses: actions/checkout@v4
 
@@ -23,19 +97,11 @@ jobs:
       - name: Sync dependencies
         run: uv sync --frozen
 
-      - name: Check Formatting (Ruff)
-        run: uv run ruff format --check app/ tests/ scripts/
-
-      - name: Lint (Ruff)
-        run: uv run ruff check app/ tests/ scripts/
-
-      - name: Type checking (mypy)
-        run: uv run mypy app/
-
-      - name: Test (Pytest)
-        run: uv run pytest -v --tb=short
+      - name: Run Integration Tests
+        run: uv run pytest tests/integration/ -v --tb=short -m integration
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-
-      - name: Build Docker
-        run: docker compose -f docker/docker-compose.yml build
+          API_KEY: "dv-ci-integration-key-not-real"
+          REDIS_HOST: localhost
+          QDRANT_HOST: localhost
+          PHOENIX_ENABLED: "false"

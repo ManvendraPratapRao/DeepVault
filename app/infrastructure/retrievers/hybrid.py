@@ -70,9 +70,12 @@ class HybridRetriever(BaseRetriever):
         # Sort by the Fused Score descending
         sorted_chunks = sorted(chunk_map.values(), key=lambda c: fused_scores[c.id], reverse=True)
 
+        # Normalize score to [0, 1] range for UI consistency (Max theoretical RRF is at rank 0 for both)
+        max_rrf_score = (self.vector_weight + self.bm25_weight) / (self.rrf_k + 1)
+
         final_chunks = []
         for chunk in sorted_chunks[:top_k]:
-            chunk.score = fused_scores[chunk.id]
+            chunk.score = fused_scores[chunk.id] / max_rrf_score
             final_chunks.append(chunk)
 
         return final_chunks

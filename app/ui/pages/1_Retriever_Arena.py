@@ -1,9 +1,13 @@
 import asyncio
+import os
 import time
 from typing import Any
 
 import httpx
 import streamlit as st
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # --- Page Configuration ---
 # Note: Page config must be the first Streamlit command in the page script
@@ -92,7 +96,11 @@ with st.sidebar:
     st.subheader("Diagnostic Controls")
 
     API_URL = st.text_input("API Endpoint", value="http://localhost:8000")
-    API_KEY = st.text_input("API Token", value="deepvault_secret_key", type="password")
+    try:
+        _default_key = st.secrets.get("API_KEY", os.environ.get("API_KEY", ""))
+    except Exception:
+        _default_key = os.environ.get("API_KEY", "")
+    API_KEY = st.text_input("API Token", value=_default_key, type="password")
 
     COL1_CHUNK_STRAT: str = (
         st.selectbox("Panel A - Chunking Array", options=["sliding", "recursive", "structure", "semantic"], index=0)
@@ -173,8 +181,8 @@ if prompt := st.chat_input("Ask a question about the synthesized corpus..."):
         # Run both queries concurrently
         async def run_concurrent_queries():
             return await asyncio.gather(
-                query_strategy(str(prompt), str(COL1_CHUNK_STRAT), str(COL1_RETRIEVAL_STRAT), str(API_URL), str(API_KEY), int(TOP_K), float(TEMPERATURE)),
-                query_strategy(str(prompt), str(COL2_CHUNK_STRAT), str(COL2_RETRIEVAL_STRAT), str(API_URL), str(API_KEY), int(TOP_K), float(TEMPERATURE)),
+                query_strategy(prompt, COL1_CHUNK_STRAT, COL1_RETRIEVAL_STRAT, (API_URL), str(API_KEY), (TOP_K), (TEMPERATURE)),
+                query_strategy(prompt, COL2_CHUNK_STRAT, COL2_RETRIEVAL_STRAT, (API_URL), str(API_KEY), (TOP_K), (TEMPERATURE)),
             )
 
         t0 = time.perf_counter()
@@ -195,8 +203,9 @@ if prompt := st.chat_input("Ask a question about the synthesized corpus..."):
                     for i, source in enumerate(res_a.get("sources", [])):
                         score = source.get("score")
                         score_display = f"{score * 100:.1f}%" if score is not None else "N/A"
+                        src_name = source.get("metadata", {}).get("source") or source.get("source", "Unknown")
                         st.markdown(f"**Chunk {i + 1}** (Relevance: {score_display})")
-                        st.caption(f"Source: {source['metadata'].get('source', 'Unknown')}")
+                        st.caption(f"Source: {src_name}")
                         st.text_area(f"Content {i}", source["content"], height=150, key=f"a_{i}")
                         st.divider()
 
@@ -214,8 +223,9 @@ if prompt := st.chat_input("Ask a question about the synthesized corpus..."):
                     for i, source in enumerate(res_b.get("sources", [])):
                         score = source.get("score")
                         score_display = f"{score * 100:.1f}%" if score is not None else "N/A"
+                        src_name = source.get("metadata", {}).get("source") or source.get("source", "Unknown")
                         st.markdown(f"**Chunk {i + 1}** (Relevance: {score_display})")
-                        st.caption(f"Source: {source['metadata'].get('source', 'Unknown')}")
+                        st.caption(f"Source: {src_name}")
                         st.text_area(f"Content {i}", source["content"], height=150, key=f"b_{i}")
                         st.divider()
 

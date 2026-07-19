@@ -1,3 +1,4 @@
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -6,7 +7,7 @@ class Settings(BaseSettings):
     # App identity
     # -------------------------------------------------------------------------
     APP_NAME: str = "DeepVault"
-    VERSION: str = "4.0.0"  # Phase 4: Observability + Streaming + Production Hardening
+    VERSION: str = "4.0.0"  # Kept in sync with pyproject.toml — bump both together
     DEBUG: bool = False
 
     # -------------------------------------------------------------------------
@@ -23,10 +24,20 @@ class Settings(BaseSettings):
 
     # -------------------------------------------------------------------------
     # API Authentication
-    # Single static API key for now. Rotate by changing this value and
-    # restarting. JWT / multi-key auth is planned for a future phase.
+    # No default — must be set in .env (or env var API_KEY=...).
+    # Rotate by updating the value and restarting the service.
+    # JWT / multi-key auth is planned for a future phase.
     # -------------------------------------------------------------------------
-    API_KEY: str = "deepvault_secret_key"
+    API_KEY: str
+
+    @field_validator("API_KEY")
+    @classmethod
+    def api_key_must_not_be_default(cls, v: str) -> str:
+        """Prevent accidental startup with a well-known placeholder key."""
+        blocked = {"deepvault_secret_key", "changeme", "secret", ""}
+        if v.strip().lower() in blocked:
+            raise ValueError("API_KEY is set to an insecure placeholder. Set a strong secret in your .env file.")
+        return v
 
     # -------------------------------------------------------------------------
     # CORS
@@ -44,7 +55,7 @@ class Settings(BaseSettings):
     # If the top retrieved chunk scores below this, we refuse to answer rather
     # than risk hallucinating. Prevents "confident wrong answer" failure mode.
     # -------------------------------------------------------------------------
-    CONTEXT_CONFIDENCE_THRESHOLD: float = 0.4
+    CONTEXT_CONFIDENCE_THRESHOLD: float = 0.15
 
     # -------------------------------------------------------------------------
     # Vector Database (Qdrant)
@@ -64,7 +75,7 @@ class Settings(BaseSettings):
     # -------------------------------------------------------------------------
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
-    REDIS_TTL_SECONDS: int = 3600      # 1 hour default TTL for query cache
+    REDIS_TTL_SECONDS: int = 3600  # 1 hour default TTL for query cache
     CACHE_ENABLED: bool = True
     EMBEDDING_CACHE_ENABLED: bool = True
 
@@ -84,7 +95,7 @@ class Settings(BaseSettings):
     # -------------------------------------------------------------------------
     CHUNKER_SIZE: int = 600
     CHUNKER_OVERLAP: int = 120
-    CHUNKER_STRATEGY: str = "fixed"   # "fixed" | "sliding" | "semantic" | "structure"
+    CHUNKER_STRATEGY: str = "fixed"  # "fixed" | "sliding" | "semantic" | "structure"
     SEMANTIC_SIMILARITY_THRESHOLD: float = 0.85
 
     # -------------------------------------------------------------------------
@@ -97,10 +108,34 @@ class Settings(BaseSettings):
     # -------------------------------------------------------------------------
     # Metadata Store (SQLite)
     # Stores document hashes, source filenames, and ingestion timestamps.
+    # SQLite is single-writer only — do NOT run with UVICORN_WORKERS > 1.
     # PostgreSQL migration is planned once multi-worker deployment is needed.
     # See ADR-003 for the rationale.
     # -------------------------------------------------------------------------
     SQLITE_DB_PATH: str = "deepvault.db"
+
+    # -------------------------------------------------------------------------
+    # Deployment
+    # UVICORN_WORKERS > 1 requires a multi-writer backend (PostgreSQL, not SQLite).
+    # The validator below will fail fast at startup to prevent silent corruption.
+    # -------------------------------------------------------------------------
+    UVICORN_WORKERS: int = 1
+
+    @field_validator("UVICORN_WORKERS")
+    @classmethod
+    def workers_require_postgres(cls, v: int) -> int:
+        """Block multi-worker startup when SQLite is the metadata store."""
+        # We check SQLITE_DB_PATH indirectly by looking at UVICORN_WORKERS.
+        # Importing settings inside a validator would be circular, so we check
+        # purely on worker count.  A follow-up migration to PostgreSQL will
+        # remove this guard.
+        if v > 1:
+            raise ValueError(
+                f"UVICORN_WORKERS={v} requires a multi-writer database (PostgreSQL). "
+                "SQLite is single-writer and will corrupt under concurrent writes. "
+                "Either set UVICORN_WORKERS=1 or migrate to PostgreSQL first."
+            )
+        return v
 
     # -------------------------------------------------------------------------
     # Document ingestion

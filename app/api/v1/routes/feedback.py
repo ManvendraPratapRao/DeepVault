@@ -52,10 +52,15 @@ class FeedbackResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+from app.services.ab_testing import ABTestingService, get_variant_value
+from app.api.dependencies import get_api_key
+from app.dependencies import get_ab_testing_service, get_feedback_store
+
 @router.post("", response_model=FeedbackResponse)
 async def submit_feedback(
     request: FeedbackRequest,
     store: FeedbackStore = Depends(get_feedback_store),
+    ab_testing_service: ABTestingService = Depends(get_ab_testing_service),
     _auth: str = Depends(get_api_key),
 ) -> FeedbackResponse:
     """
@@ -75,6 +80,20 @@ async def submit_feedback(
         session_id=request.session_id,
         created_at=datetime.now(UTC).isoformat(),
     )
+
+    # Record Rating for A/B Tests (if in a session)
+    if request.session_id:
+        for test_name in ["prompt_v3_test", "rerank_vs_hybrid"]:
+            variant = get_variant_value(request.session_id, test_name)
+            if variant:
+                import asyncio
+                asyncio.create_task(ab_testing_service.record_result(
+                    test_name=test_name,
+                    variant=variant,
+                    metric_name="rating",
+                    metric_value=float(request.rating),
+                    session_id=request.session_id,
+                ))
 
     logger.info(
         f"Feedback submitted: id={feedback_id} rating={request.rating}",

@@ -7,11 +7,16 @@ SSE endpoint to display LLM tokens as they arrive.
 Uses httpx with streaming to consume the Server-Sent Events stream.
 """
 
+import json
+import os
 import time
 import uuid
 
 import httpx
 import streamlit as st
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from app.ui.utils.chat_storage import delete_session, get_recent_sessions, load_session, save_session
 
@@ -95,7 +100,12 @@ with st.sidebar:
     )
     
     API_URL = st.text_input("API Endpoint", value="http://localhost:8000")
-    API_KEY = st.text_input("API Token", value="deepvault_secret_key", type="password")
+    # Read from Streamlit secrets (production) or env var (local dev).
+    try:
+        _default_key = st.secrets.get("API_KEY", os.environ.get("API_KEY", ""))
+    except Exception:
+        _default_key = os.environ.get("API_KEY", "")
+    API_KEY = st.text_input("API Token", value=_default_key, type="password")
 
     st.divider()
     model_selection = st.selectbox(
@@ -223,7 +233,7 @@ if prompt := st.chat_input("Ask anything about your documents…"):
                     f"{API_URL}/api/v1/stream",
                     json=payload,
                     headers={
-                        "X-API-KEY": API_KEY,
+                        "X-API-KEY": str(API_KEY),
                         "Accept": "text/event-stream",
                     },
                 ) as resp:
@@ -247,10 +257,9 @@ if prompt := st.chat_input("Ask anything about your documents…"):
                                     break
                                     
                                 if token.startswith("[SOURCES] "):
-                                    import json
                                     try:
                                         sources = json.loads(token[10:])
-                                    except:
+                                    except Exception:
                                         pass
                                     continue
 
@@ -292,14 +301,49 @@ if prompt := st.chat_input("Ask anything about your documents…"):
                 unsafe_allow_html=True,
             )
             
-            # Simulated Human Feedback Buttons
+            # Human Feedback Buttons — wired to POST /api/v1/feedback
             col1, col2, _ = st.columns([1, 1, 10])
+            msg_idx = len(st.session_state.messages)
             with col1:
-                if st.button("👍", key=f"up_{len(st.session_state.messages)}"):
-                    st.toast("Feedback recorded!")
+                if st.button("👍", key=f"up_{msg_idx}"):
+                    try:
+                        httpx.post(
+                            f"{API_URL}/api/v1/feedback",
+                            json={
+                                "request_id": f"chat-{st.session_state.session_id}-{msg_idx}",
+                                "query_text": prompt,
+                                "answer_text": full_response[:500],
+                                "rating": 5,
+                                "retrieval_strategy": retrieval_strategy,
+                                "chunking_strategy": chunking_strategy,
+                                "session_id": st.session_state.session_id,
+                            },
+                            headers={"X-API-KEY": str(API_KEY)},
+                            timeout=5.0,
+                        )
+                        st.toast("👍 Feedback recorded!")
+                    except Exception:
+                        st.toast("Feedback saved locally (API unreachable).")
             with col2:
-                if st.button("👎", key=f"down_{len(st.session_state.messages)}"):
-                    st.toast("Feedback recorded!")
+                if st.button("👎", key=f"down_{msg_idx}"):
+                    try:
+                        httpx.post(
+                            f"{API_URL}/api/v1/feedback",
+                            json={
+                                "request_id": f"chat-{st.session_state.session_id}-{msg_idx}",
+                                "query_text": prompt,
+                                "answer_text": full_response[:500],
+                                "rating": 1,
+                                "retrieval_strategy": retrieval_strategy,
+                                "chunking_strategy": chunking_strategy,
+                                "session_id": st.session_state.session_id,
+                            },
+                            headers={"X-API-KEY": str(API_KEY)},
+                            timeout=5.0,
+                        )
+                        st.toast("👎 Feedback recorded!")
+                    except Exception:
+                        st.toast("Feedback saved locally (API unreachable).")
 
     # Save to history only if we got a real response
     if not error_occurred and full_response:

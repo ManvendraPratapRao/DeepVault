@@ -48,7 +48,7 @@ lint-fix:
 	uv run ruff format app/ tests/ scripts/
 
 typecheck:
-	uv run mypy app/ || true
+	uv run mypy app/
 
 docker-up:
 	docker compose -f docker/docker-compose.yml up --build -d

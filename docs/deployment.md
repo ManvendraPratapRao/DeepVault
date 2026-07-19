@@ -39,7 +39,7 @@ Copy `.env.example` to `.env` and fill in your values:
 
 ```env
 GROQ_API_KEY=gsk_your_key_here
-API_KEY=deepvault_secret_key
+API_KEY=your-strong-random-secret-here  # python -c "import secrets; print(secrets.token_hex(32))"
 
 # Infrastructure
 QDRANT_HOST=localhost
@@ -185,7 +185,7 @@ curl http://<EC2_PUBLIC_IP>:8000/api/v1/health
 | Variable | Default | Required | Description |
 |----------|---------|----------|-------------|
 | `GROQ_API_KEY` | — | ✅ | Groq API key for LLM inference |
-| `API_KEY` | `deepvault_secret_key` | ✅ | Bearer token for API authentication |
+| `API_KEY` | — (required) | ✅ | Bearer token for API authentication. Generate with `python -c "import secrets; print(secrets.token_hex(32))"` |
 | `QDRANT_HOST` | `localhost` | — | Qdrant server hostname |
 | `QDRANT_PORT` | `6333` | — | Qdrant REST port |
 | `REDIS_HOST` | `localhost` | — | Redis hostname |

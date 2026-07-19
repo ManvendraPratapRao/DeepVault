@@ -403,6 +403,7 @@ async def get_query_service() -> QueryService:
         router=await get_query_router(),
         decomposer=await get_query_decomposer(),
         llm_router=await get_llm_router(),
+        ab_testing_service=await get_ab_testing_service(),
     )
 
 
