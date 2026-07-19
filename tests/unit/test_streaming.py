@@ -26,8 +26,22 @@ async def _async_gen(*tokens: str):
 
 META = DocumentMetadata(source="test_doc.md")
 SAMPLE_CHUNKS = [
-    Chunk(id="c1", document_id="d1", content="DeepVault is a RAG system.", chunk_index=0, metadata=META.model_dump(), score=1.0),
-    Chunk(id="c2", document_id="d1", content="It uses hybrid retrieval.", chunk_index=1, metadata=META.model_dump(), score=0.9),
+    Chunk(
+        id="c1",
+        document_id="d1",
+        content="DeepVault is a RAG system.",
+        chunk_index=0,
+        metadata=META.model_dump(),
+        score=1.0,
+    ),
+    Chunk(
+        id="c2",
+        document_id="d1",
+        content="It uses hybrid retrieval.",
+        chunk_index=1,
+        metadata=META.model_dump(),
+        score=0.9,
+    ),
 ]
 
 

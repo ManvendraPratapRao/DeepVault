@@ -3,6 +3,7 @@ eval/ragas_adapter.py
 =====================
 Converts DeepVault RAG responses into the HuggingFace Dataset format required by RAGAS.
 """
+
 from typing import Any
 
 from app.core.models.query import QueryResponse

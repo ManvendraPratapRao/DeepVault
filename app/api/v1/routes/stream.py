@@ -16,12 +16,11 @@ SSE format used:
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 
+from app.api.dependencies import rate_limit_dependency
 from app.api.schemas.requests import QueryAPIRequest
 from app.core.models.query import QueryRequest
 from app.dependencies import get_query_service
 from app.services.query import QueryService
-
-from app.api.dependencies import rate_limit_dependency
 
 router = APIRouter()
 

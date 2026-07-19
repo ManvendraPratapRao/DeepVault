@@ -180,18 +180,23 @@ class ABTestingService:
 
         Also computes Welch's t-test p-value for the mean difference.
         """
+        try:
+            from scipy import stats
+
+            has_scipy = True
+        except ImportError:
+            has_scipy = False
+
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
+            # Fetch raw data to compute variance / run t-test
             async with db.execute(
-                """SELECT variant, metric_name, AVG(metric_value) as mean,
-                          COUNT(*) as n,
-                          SUM(CASE WHEN metric_value >= 4 THEN 1 ELSE 0 END) as positives
+                """SELECT variant, metric_name, metric_value
                    FROM ab_test_results
-                   WHERE test_name = ?
-                   GROUP BY variant, metric_name""",
+                   WHERE test_name = ?""",
                 (test_name,),
             ) as cur:
-                rows = [dict(r) async for r in cur]
+                raw_rows = [dict(r) async for r in cur]
 
         test = ACTIVE_TESTS.get(test_name)
         results: dict[str, Any] = {
@@ -199,28 +204,74 @@ class ABTestingService:
             "description": test.description if test else "Unknown test",
             "variants": {},
             "significance": "insufficient_data",
+            "p_values": {},
         }
 
-        for row in rows:
+        # Group raw data by variant and metric
+        grouped_data: dict[str, dict[str, list[float]]] = {}
+        for row in raw_rows:
             v = row["variant"]
             m = row["metric_name"]
-            if v not in results["variants"]:
-                results["variants"][v] = {}
-            results["variants"][v][m] = {
-                "mean": round(row["mean"], 4),
-                "n": row["n"],
-                "positive_rate": round(row["positives"] / max(row["n"], 1), 4),
-            }
+            val = row["metric_value"]
+            if v not in grouped_data:
+                grouped_data[v] = {}
+            if m not in grouped_data[v]:
+                grouped_data[v][m] = []
+            grouped_data[v][m].append(val)
 
-        # Determine significance from sample sizes
-        total_n = sum(v.get("rating", {}).get("n", 0) for v in results["variants"].values())
-        if total_n >= 100:
-            results["significance"] = "statistically_testable"
-            results["recommendation"] = "Run Chi-squared test on positive_rate columns for significance."
-        elif total_n >= 30:
-            results["significance"] = "preliminary"
-        else:
-            results["significance"] = "insufficient_data (need >= 100 total samples)"
+        # Compute aggregates
+        for v, metrics in grouped_data.items():
+            results["variants"][v] = {}
+            for m, values in metrics.items():
+                n = len(values)
+                mean_val = sum(values) / n if n > 0 else 0
+                positives = sum(1 for val in values if val >= 4)  # Assuming metric >= 4 is positive
+
+                results["variants"][v][m] = {
+                    "mean": round(mean_val, 4),
+                    "n": n,
+                    "positive_rate": round(positives / max(n, 1), 4),
+                }
+
+        # Determine significance using Welch's t-test if possible
+        if test and test.treatment_value in grouped_data and test.control_value in grouped_data:
+            control_data = grouped_data[test.control_value]
+            treatment_data = grouped_data[test.treatment_value]
+
+            total_n = sum(len(control_data.get(m, [])) for m in control_data) + sum(
+                len(treatment_data.get(m, [])) for m in treatment_data
+            )
+
+            if has_scipy:
+                # Compute p-values for overlapping metrics
+                for m in control_data.keys():
+                    if m in treatment_data:
+                        c_vals = control_data[m]
+                        t_vals = treatment_data[m]
+                        if len(c_vals) >= 2 and len(t_vals) >= 2:
+                            # Welch's t-test (equal_var=False)
+                            t_stat, p_val = stats.ttest_ind(c_vals, t_vals, equal_var=False)
+                            results["p_values"][m] = round(float(p_val), 4)
+
+                if total_n >= 30:
+                    # Check if any p_value is < 0.05
+                    is_significant = any(p < 0.05 for p in results["p_values"].values())
+                    if is_significant:
+                        results["significance"] = "statistically_significant"
+                        results["recommendation"] = "Treatment shows a statistically significant difference (p < 0.05)."
+                    else:
+                        results["significance"] = "not_significant"
+                        results["recommendation"] = "No statistically significant difference found (p >= 0.05)."
+                else:
+                    results["significance"] = "insufficient_data (need >= 30 total samples)"
+            else:
+                if total_n >= 100:
+                    results["significance"] = "statistically_testable"
+                    results["recommendation"] = (
+                        "scipy is not installed. Install scipy to compute Welch's t-test automatically."
+                    )
+                else:
+                    results["significance"] = "insufficient_data (need >= 100 total samples)"
 
         return results
 

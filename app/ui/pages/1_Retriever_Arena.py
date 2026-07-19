@@ -181,8 +181,12 @@ if prompt := st.chat_input("Ask a question about the synthesized corpus..."):
         # Run both queries concurrently
         async def run_concurrent_queries():
             return await asyncio.gather(
-                query_strategy(prompt, COL1_CHUNK_STRAT, COL1_RETRIEVAL_STRAT, (API_URL), str(API_KEY), (TOP_K), (TEMPERATURE)),
-                query_strategy(prompt, COL2_CHUNK_STRAT, COL2_RETRIEVAL_STRAT, (API_URL), str(API_KEY), (TOP_K), (TEMPERATURE)),
+                query_strategy(
+                    prompt, COL1_CHUNK_STRAT, COL1_RETRIEVAL_STRAT, (API_URL), str(API_KEY), (TOP_K), (TEMPERATURE)
+                ),
+                query_strategy(
+                    prompt, COL2_CHUNK_STRAT, COL2_RETRIEVAL_STRAT, (API_URL), str(API_KEY), (TOP_K), (TEMPERATURE)
+                ),
             )
 
         t0 = time.perf_counter()

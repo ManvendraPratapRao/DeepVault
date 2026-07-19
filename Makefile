@@ -26,7 +26,7 @@ seed-all:
 
 # Run the evaluation benchmark engine
 eval:
-	PYTHONPATH=. uv run python scripts/eval_engine_metrics.py --limit 50
+	PYTHONPATH=. uv run python scripts/eval/runner_v2.py --limit 50 --run-id latest
 
 # Reset all data. Single-strategy: make reset STRATEGY=semantic
 reset:

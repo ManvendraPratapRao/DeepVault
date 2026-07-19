@@ -34,7 +34,11 @@ def mock_query_svc():
     # Return a dummy query response
     svc.ask.return_value = QueryAPIResponse(
         answer="This is a test answer.",
-        sources=[SourceChunk(id="chunk-1", content="chunk1", document_id="doc1", chunk_index=0, metadata={"source": "test.txt"})],
+        sources=[
+            SourceChunk(
+                id="chunk-1", content="chunk1", document_id="doc1", chunk_index=0, metadata={"source": "test.txt"}
+            )
+        ],
         latency_ms=42.0,
         request_id="req-123",
     )

@@ -53,6 +53,7 @@ sys.path.insert(0, str(ROOT))
 
 # ── Groq client ───────────────────────────────────────────────────────────────
 
+
 def _load_env_key() -> str:
     env_file = ROOT / ".env"
     if env_file.exists():
@@ -65,8 +66,6 @@ def _load_env_key() -> str:
 client = Groq(api_key=os.environ.get("GROQ_API_KEY") or _load_env_key())
 
 
-
-
 # ── constants ─────────────────────────────────────────────────────────────────
 SYNTHETIC_DIR = ROOT / "synthetic_data_v2"
 GOLDEN_QA_PATH = SYNTHETIC_DIR / "golden_qa_dataset.json"
@@ -76,23 +75,23 @@ PROJECTS = ["deepvault", "chimera", "nexus", "atlas", "aurora", "sentinel", "tit
 
 CATEGORIES = {
     "slack_conversations": 50,
-    "project_docs":        50,
-    "meeting_notes":       40,
-    "wiki_pages":          40,
-    "incident_reports":    40,
-    "api_documentation":   40,
-    "runbooks_sops":       30,
+    "project_docs": 50,
+    "meeting_notes": 40,
+    "wiki_pages": 40,
+    "incident_reports": 40,
+    "api_documentation": 40,
+    "runbooks_sops": 30,
 }
 
 # Model rotation: (model_id, max_tokens_per_call, delay_between_calls_sec)
 MODELS = [
-    ("meta-llama/llama-4-scout-17b-16e-instruct", 1200, 2.1),  
-    ("llama-3.1-8b-instant",                      900,  2.1),  
-    ("qwen/qwen3-32b",                            900,  1.1),  
-    ("openai/gpt-oss-120b",                       1200, 2.1),
-    ("openai/gpt-oss-20b",                        1000, 2.1),
-    ("qwen/qwen3.6-27b",                          1000, 2.1),
-    ("llama-3.3-70b-versatile",                   1200, 2.1),  # Q&A only
+    ("meta-llama/llama-4-scout-17b-16e-instruct", 1200, 2.1),
+    ("llama-3.1-8b-instant", 900, 2.1),
+    ("qwen/qwen3-32b", 900, 1.1),
+    ("openai/gpt-oss-120b", 1200, 2.1),
+    ("openai/gpt-oss-20b", 1000, 2.1),
+    ("qwen/qwen3.6-27b", 1000, 2.1),
+    ("llama-3.3-70b-versatile", 1200, 2.1),  # Q&A only
 ]
 
 QA_MODEL = "llama-3.3-70b-versatile"
@@ -166,43 +165,84 @@ Title: # Runbook: {project} — {operation}
 
 TOPIC_VARIANTS = {
     "slack_conversations": [
-        "deployment pipeline failure", "database migration planning", "API rate limit issues",
-        "model performance degradation", "security vulnerability response", "infrastructure scaling",
-        "on-call handoff", "data pipeline latency spike", "new feature rollout",
-        "dependency upgrade breaking changes", "memory leak investigation", "cache invalidation bug",
+        "deployment pipeline failure",
+        "database migration planning",
+        "API rate limit issues",
+        "model performance degradation",
+        "security vulnerability response",
+        "infrastructure scaling",
+        "on-call handoff",
+        "data pipeline latency spike",
+        "new feature rollout",
+        "dependency upgrade breaking changes",
+        "memory leak investigation",
+        "cache invalidation bug",
     ],
     "project_docs": ["v1.0", "v1.1", "v2.0", "v2.1", "v3.0"],
     "meeting_notes": [
-        "June 2, 2025", "June 9, 2025", "June 16, 2025", "June 23, 2025",
-        "July 7, 2025", "July 14, 2025", "July 21, 2025",
+        "June 2, 2025",
+        "June 9, 2025",
+        "June 16, 2025",
+        "June 23, 2025",
+        "July 7, 2025",
+        "July 14, 2025",
+        "July 21, 2025",
     ],
     "wiki_pages": [
-        "Architecture Overview", "Getting Started Guide", "Troubleshooting Playbook",
-        "Data Model Reference", "Deployment Guide", "Configuration Reference",
-        "Security Best Practices", "Performance Tuning",
+        "Architecture Overview",
+        "Getting Started Guide",
+        "Troubleshooting Playbook",
+        "Data Model Reference",
+        "Deployment Guide",
+        "Configuration Reference",
+        "Security Best Practices",
+        "Performance Tuning",
     ],
     "incident_reports": [
-        "Database Outage", "API Gateway Failure", "Memory Leak in Production",
-        "Data Pipeline Corruption", "Authentication Service Degradation",
-        "Cache Stampede", "Kafka Consumer Lag Spike", "Vector DB Connection Pool Exhaustion",
+        "Database Outage",
+        "API Gateway Failure",
+        "Memory Leak in Production",
+        "Data Pipeline Corruption",
+        "Authentication Service Degradation",
+        "Cache Stampede",
+        "Kafka Consumer Lag Spike",
+        "Vector DB Connection Pool Exhaustion",
     ],
     "api_documentation": [
-        "Data Ingestion", "Model Serving", "User Management", "Analytics",
-        "Authentication", "Notification", "Search", "Storage",
+        "Data Ingestion",
+        "Model Serving",
+        "User Management",
+        "Analytics",
+        "Authentication",
+        "Notification",
+        "Search",
+        "Storage",
     ],
     "runbooks_sops": [
-        "Database Failover", "Blue-Green Deployment", "Rollback Procedure",
-        "Cache Warm-Up", "Certificate Rotation", "Incident Response",
-        "Capacity Scaling", "Log Rotation",
+        "Database Failover",
+        "Blue-Green Deployment",
+        "Rollback Procedure",
+        "Cache Warm-Up",
+        "Certificate Rotation",
+        "Incident Response",
+        "Capacity Scaling",
+        "Log Rotation",
     ],
     "incident_dates": [
-        "2025-01-15", "2025-02-03", "2025-03-22", "2025-04-11",
-        "2025-05-07", "2025-06-19", "2024-11-30", "2024-12-14",
+        "2025-01-15",
+        "2025-02-03",
+        "2025-03-22",
+        "2025-04-11",
+        "2025-05-07",
+        "2025-06-19",
+        "2024-11-30",
+        "2024-12-14",
     ],
 }
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
+
 
 def _next_doc_index(category_dir: Path, project: str) -> int:
     """Find the next available numeric suffix for this project in this category."""
@@ -239,7 +279,7 @@ def _call_groq(model: str, prompt: str, max_tokens: int, delay: float) -> str:
             time.sleep(delay)
             return resp.choices[0].message.content.strip()
         except Exception as e:
-            wait = 2 ** attempt * 5
+            wait = 2**attempt * 5
             print(f"  [RETRY {attempt + 1}] {model}: {e} — waiting {wait}s")
             time.sleep(wait)
     return ""
@@ -311,7 +351,7 @@ Output ONLY the JSON array. No other text."""
                 if isinstance(pairs, list) and pairs:
                     return pairs
         except Exception as e:
-            wait = 2 ** attempt * 5
+            wait = 2**attempt * 5
             print(f"  [QA RETRY {attempt + 1}] {e} — waiting {wait}s")
             time.sleep(wait)
 
@@ -319,6 +359,7 @@ Output ONLY the JSON array. No other text."""
 
 
 # ── main generation ───────────────────────────────────────────────────────────
+
 
 def generate_documents() -> list[tuple[str, Path]]:
     """Generate all new documents. Returns list of (source_doc_name, file_path)."""
@@ -397,11 +438,13 @@ def merge_and_save_qa(new_pairs: list[dict]) -> None:
             # Normalise answer: flatten list to string
             raw_answer = item.get("answer", "")
             answer = " ".join(raw_answer) if isinstance(raw_answer, list) else str(raw_answer).strip()
-            merged.append({
-                "question": item.get("question", ""),
-                "answer": answer,
-                "source_document": item.get("source_document", ""),
-            })
+            merged.append(
+                {
+                    "question": item.get("question", ""),
+                    "answer": answer,
+                    "source_document": item.get("source_document", ""),
+                }
+            )
 
     GOLDEN_QA_PATH.write_text(json.dumps(merged, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"[QA] Saved {len(merged)} total Q&A pairs → {GOLDEN_QA_PATH.name}")
@@ -422,6 +465,7 @@ def update_manifest() -> None:
 
 
 # ── entrypoint ────────────────────────────────────────────────────────────────
+
 
 def main() -> None:
     print("\n" + "=" * 65)

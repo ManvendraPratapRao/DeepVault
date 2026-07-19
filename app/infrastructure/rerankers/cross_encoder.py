@@ -3,7 +3,6 @@ import math
 from typing import cast
 
 import numpy as np
-
 from sentence_transformers import CrossEncoder
 
 from app.core.interfaces.reranker import BaseReranker
@@ -67,7 +66,7 @@ class CrossEncoderReranker(BaseReranker):
             # Assign final scores and return top_k
             final_chunks = []
             for chunk, prob in scored_chunks[:top_k]:
-                chunk.score = (prob)
+                chunk.score = prob
                 final_chunks.append(chunk)
 
             return final_chunks

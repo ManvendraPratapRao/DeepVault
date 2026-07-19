@@ -81,10 +81,12 @@ if "chat_mode" not in st.session_state:
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
+
 # Function to start a new chat
 def start_new_chat():
     st.session_state.session_id = str(uuid.uuid4())
     st.session_state.messages = []
+
 
 # ---------------------------------------------------------------------------
 # Sidebar: Configuration
@@ -93,12 +95,12 @@ def start_new_chat():
 with st.sidebar:
     st.header("Chat Settings")
     st.session_state.chat_mode = st.radio(
-        "Chat Mode", 
-        ["Regular", "Temporary"], 
+        "Chat Mode",
+        ["Regular", "Temporary"],
         index=0 if st.session_state.chat_mode == "Regular" else 1,
-        help="Regular chats are saved (up to 5). Temporary chats disappear on refresh."
+        help="Regular chats are saved (up to 5). Temporary chats disappear on refresh.",
     )
-    
+
     API_URL = st.text_input("API Endpoint", value="http://localhost:8000")
     # Read from Streamlit secrets (production) or env var (local dev).
     try:
@@ -112,11 +114,11 @@ with st.sidebar:
         "LLM Model",
         ["Auto (Router Selected)", "groq/llama-3.1-8b-instant", "groq/llama-3.3-70b-versatile", "groq/qwen/qwen3-32b"],
         index=0,
-        help="Choose Auto to let the system pick the cheapest capable model based on query complexity."
+        help="Choose Auto to let the system pick the cheapest capable model based on query complexity.",
     )
     # If "Auto" is chosen, pass None so the backend LLMRouter activates
     model_name = None if model_selection == "Auto (Router Selected)" else model_selection
-    
+
     st.divider()
     st.subheader("Retrieval Settings")
 
@@ -132,9 +134,18 @@ with st.sidebar:
     retrieval_strategy = (
         st.selectbox(
             "Retrieval Strategy",
-            ["auto", "auto_rewrite", "vector", "vector_rewrite", "hybrid", "hybrid_rewrite", "hybrid_rerank", "hybrid_rerank_rewrite"],
+            [
+                "auto",
+                "auto_rewrite",
+                "vector",
+                "vector_rewrite",
+                "hybrid",
+                "hybrid_rewrite",
+                "hybrid_rerank",
+                "hybrid_rerank_rewrite",
+            ],
             index=1,
-            help="Choose 'auto' to let the system intelligently route your query to the best strategy."
+            help="Choose 'auto' to let the system intelligently route your query to the best strategy. Strategies ending with '_rewrite' will have the suffix stripped before sending to the API, and the 'use_query_rewriting' flag will be enabled instead.",
         )
         or "auto_rewrite"
     )
@@ -143,13 +154,13 @@ with st.sidebar:
     use_rewriting = "_rewrite" in retrieval_strategy
 
     st.divider()
-    
+
     # Chat History Sidebar
     st.subheader("Chat History")
     if st.button("➕ New Chat", use_container_width=True):
         start_new_chat()
         st.rerun()
-        
+
     recent_sessions = get_recent_sessions(limit=5)
     if recent_sessions:
         st.write("Recent Chats:")
@@ -157,7 +168,7 @@ with st.sidebar:
             c1, c2 = st.columns([4, 1])
             with c1:
                 # If it's the current session, show differently
-                is_active = (s["session_id"] == st.session_state.session_id)
+                is_active = s["session_id"] == st.session_state.session_id
                 btn_label = f"💬 {s['title']}" if not is_active else f"🟢 {s['title']}"
                 if st.button(btn_label, key=f"load_{s['session_id']}", use_container_width=True):
                     st.session_state.session_id = s["session_id"]
@@ -222,7 +233,7 @@ if prompt := st.chat_input("Ask anything about your documents…"):
             # Pass all previous messages for multi-turn context (excluding system prompts if any)
             "messages": [
                 {"role": m["role"], "content": m["content"]}
-                for m in st.session_state.messages[:-1] # exclude the prompt we just added
+                for m in st.session_state.messages[:-1]  # exclude the prompt we just added
             ],
         }
 
@@ -255,7 +266,7 @@ if prompt := st.chat_input("Ask anything about your documents…"):
                                     st.error(f"❌ {token}")
                                     error_occurred = True
                                     break
-                                    
+
                                 if token.startswith("[SOURCES] "):
                                     try:
                                         sources = json.loads(token[10:])
@@ -283,14 +294,17 @@ if prompt := st.chat_input("Ask anything about your documents…"):
         if not error_occurred and full_response:
             latency = (time.perf_counter() - start_ts) * 1000
             response_placeholder.markdown(full_response)
-            
+
             # Render sources
             if sources:
                 with sources_placeholder.container():
                     for idx, src in enumerate(sources):
-                        score_str = f" (Score: {src.get('score'):.3f})" if src.get("score") else ""
-                        with st.expander(f"📄 Source {idx+1}: {src.get('source', 'Unknown')}{score_str}"):
-                            st.markdown(f"<div class='source-box'>{src.get('content', '')[:500]}...</div>", unsafe_allow_html=True)
+                        score_str = f" (Score: {src.get('score'):.3f})" if src.get("score") is not None else ""
+                        with st.expander(f"📄 Source {idx + 1}: {src.get('source', 'Unknown')}{score_str}"):
+                            st.markdown(
+                                f"<div class='source-box'>{src.get('content', '')[:500]}...</div>",
+                                unsafe_allow_html=True,
+                            )
 
             # Metadata footer
             st.caption(
@@ -300,7 +314,7 @@ if prompt := st.chat_input("Ask anything about your documents…"):
                 f"<span class='badge'>{(model_name or 'Auto').split('/')[-1]}</span>",
                 unsafe_allow_html=True,
             )
-            
+
             # Human Feedback Buttons — wired to POST /api/v1/feedback
             col1, col2, _ = st.columns([1, 1, 10])
             msg_idx = len(st.session_state.messages)
@@ -348,7 +362,7 @@ if prompt := st.chat_input("Ask anything about your documents…"):
     # Save to history only if we got a real response
     if not error_occurred and full_response:
         st.session_state.messages.append({"role": "assistant", "content": full_response})
-        
+
         # Save session to persistent storage if in Regular mode
         if st.session_state.chat_mode == "Regular":
             # Generate a title from the first query if it's the first exchange

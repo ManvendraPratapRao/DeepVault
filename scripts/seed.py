@@ -118,10 +118,7 @@ async def seed_single(data_dirs: list[str], chunker: str, dry_run: bool, *, mana
         await initialize_all()
 
     svc = await get_ingestion_service(
-        strategy=chunker,
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap,
-        **strategy_kwargs
+        strategy=chunker, chunk_size=chunk_size, chunk_overlap=chunk_overlap, **strategy_kwargs
     )
 
     stats = {"success": 0, "duplicate": 0, "failed": 0}

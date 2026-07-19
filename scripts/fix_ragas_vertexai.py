@@ -15,8 +15,7 @@ import sys
 BASE_PY = pathlib.Path(".venv/Lib/site-packages/ragas/llms/base.py")
 
 OLD_IMPORT = (
-    "from langchain_community.chat_models.vertexai import ChatVertexAI\n"
-    "from langchain_community.llms import VertexAI"
+    "from langchain_community.chat_models.vertexai import ChatVertexAI\nfrom langchain_community.llms import VertexAI"
 )
 
 NEW_IMPORT = (

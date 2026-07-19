@@ -25,6 +25,7 @@ from app.services.cache_service import CacheService
 
 class LowConfidenceError(DeepVaultError):
     """Raised when the top retrieved chunk is below the confidence threshold."""
+
     def __init__(self, chunks):
         super().__init__("Low context confidence")
         self.chunks = chunks
@@ -58,7 +59,9 @@ class QueryService:
         self.llm_router = llm_router
         self.ab_testing_service = ab_testing_service
 
-    async def _prepare_rag_context(self, request: QueryRequest, request_id: str) -> tuple[list, str, str | None, str | None, str]:
+    async def _prepare_rag_context(
+        self, request: QueryRequest, request_id: str
+    ) -> tuple[list, str, str | None, str | None, str]:
         """
         Runs the pre-generation RAG pipeline.
         Returns: (chunks, context_str, query_type, model_name, final_user_prompt)
@@ -96,7 +99,14 @@ class QueryService:
         collection_display = collection_name or "Default"
         logger.info(
             f"Strategy: chunking={request.chunking_strategy!r} retrieval={strat!r} collection={collection_display!r}",
-            extra={"extra_fields": {"chunking_strategy": request.chunking_strategy, "retrieval_strategy": strat, "query_type": query_type, "collection": collection_name}},
+            extra={
+                "extra_fields": {
+                    "chunking_strategy": request.chunking_strategy,
+                    "retrieval_strategy": strat,
+                    "query_type": query_type,
+                    "collection": collection_name,
+                }
+            },
         )
 
         fetch_k = request.top_k * 2 if "rerank" in strat else request.top_k
@@ -134,7 +144,13 @@ class QueryService:
         if top_score < settings.CONTEXT_CONFIDENCE_THRESHOLD:
             logger.warning(
                 "Low context confidence \u2014 refusing to generate to prevent hallucination.",
-                extra={"extra_fields": {"request_id": request_id, "top_chunk_score": top_score, "threshold": settings.CONTEXT_CONFIDENCE_THRESHOLD}},
+                extra={
+                    "extra_fields": {
+                        "request_id": request_id,
+                        "top_chunk_score": top_score,
+                        "threshold": settings.CONTEXT_CONFIDENCE_THRESHOLD,
+                    }
+                },
             )
             raise LowConfidenceError(chunks)
 
@@ -146,7 +162,9 @@ class QueryService:
             context_blocks.append(block)
 
         context_str = "\n\n---\n\n".join(context_blocks)
-        final_user_prompt = RAG_USER_TEMPLATE.replace("{context}", context_str).replace("{question}", request.query_text)
+        final_user_prompt = RAG_USER_TEMPLATE.replace("{context}", context_str).replace(
+            "{question}", request.query_text
+        )
 
         # --- 7. Select LLM Model using LLMRouter ---
         model_name = request.model_name
@@ -169,19 +187,22 @@ class QueryService:
 
     async def ask(self, request: QueryRequest, request_id: str = "internal") -> QueryResponse:
         start_time = time.perf_counter()
-        logger.info(f"Processing query: {request.query_text[:50]}...", extra={"extra_fields": {"request_id": request_id}})
-        
+        logger.info(
+            f"Processing query: {request.query_text[:50]}...", extra={"extra_fields": {"request_id": request_id}}
+        )
+
         system_prompt = RAG_SYSTEM_PROMPT
         if self.ab_testing_service and request.session_id:
             # 1. Retrieval Strategy A/B Test
             retrieval_variant = get_variant_value(request.session_id, "rerank_vs_hybrid")
             if retrieval_variant:
                 request.retrieval_strategy = retrieval_variant
-                
+
             # 2. Prompt Variant A/B Test
             prompt_variant = get_variant_value(request.session_id, "prompt_v3_test")
             if prompt_variant == "v3":
                 from app.prompts.v3.system import RAG_SYSTEM_PROMPT as V3_PROMPT
+
                 system_prompt = V3_PROMPT
 
         if self.cache_service and not request.messages:
@@ -196,59 +217,88 @@ class QueryService:
                 span.set_attribute("cache.hit", False)
 
         try:
-            chunks, context_str, query_type, model_name, final_user_prompt = await self._prepare_rag_context(request, request_id)
+            chunks, context_str, query_type, model_name, final_user_prompt = await self._prepare_rag_context(
+                request, request_id
+            )
         except LowConfidenceError as e:
             return QueryResponse(
                 answer="I don't have sufficient information in the knowledge base to answer this question accurately. The retrieved context does not appear to be directly relevant to your query. Please try rephrasing your question or verify that the relevant documents have been ingested.",
-                sources=e.chunks, usage=TokenUsage(), latency_ms=(time.perf_counter() - start_time) * 1000, request_id=request_id, low_confidence=True
+                sources=e.chunks,
+                usage=TokenUsage(),
+                latency_ms=(time.perf_counter() - start_time) * 1000,
+                request_id=request_id,
+                low_confidence=True,
             )
 
         with tracer.start_as_current_span("deepvault.query.generate") as span:
             span.set_attribute("generate.model", model_name or "default")
             span.set_attribute("generate.prompt_length", len(final_user_prompt))
-            llm_result = await self.llm_client.generate(prompt=final_user_prompt, system_prompt=system_prompt, model_name=model_name, history=request.messages)
+            llm_result = await self.llm_client.generate(
+                prompt=final_user_prompt, system_prompt=system_prompt, model_name=model_name, history=request.messages
+            )
             span.set_attribute("generate.answer_length", len(llm_result.answer))
             span.set_attribute("generate.prompt_tokens", llm_result.usage.prompt_tokens)
             span.set_attribute("generate.completion_tokens", llm_result.usage.completion_tokens)
 
         latency_ms = (time.perf_counter() - start_time) * 1000
-        logger.info("Query answered successfully (Cache Miss)", extra={"extra_fields": {"request_id": request_id, "latency_ms": latency_ms, "num_sources": len(chunks), "cache_miss": True}})
+        logger.info(
+            "Query answered successfully (Cache Miss)",
+            extra={
+                "extra_fields": {
+                    "request_id": request_id,
+                    "latency_ms": latency_ms,
+                    "num_sources": len(chunks),
+                    "cache_miss": True,
+                }
+            },
+        )
 
-        response = QueryResponse(answer=llm_result.answer, sources=chunks, usage=llm_result.usage, latency_ms=latency_ms, request_id=request_id)
+        response = QueryResponse(
+            answer=llm_result.answer,
+            sources=chunks,
+            usage=llm_result.usage,
+            latency_ms=latency_ms,
+            request_id=request_id,
+        )
 
         if self.cache_service and not request.messages:
             with tracer.start_as_current_span("deepvault.query.cache_write"):
                 await self.cache_service.cache_response(request.query_text, response)
-                
+
         if self.ab_testing_service and request.session_id:
             # Record latency for the prompt test variant
             prompt_variant = get_variant_value(request.session_id, "prompt_v3_test")
             if prompt_variant:
-                asyncio.create_task(self.ab_testing_service.record_result(
-                    "prompt_v3_test", prompt_variant, "latency", latency_ms, request.session_id
-                ))
-            
+                asyncio.create_task(
+                    self.ab_testing_service.record_result(
+                        "prompt_v3_test", prompt_variant, "latency", latency_ms, request.session_id
+                    )
+                )
+
             # Record latency for the retrieval test variant
             retrieval_variant = get_variant_value(request.session_id, "rerank_vs_hybrid")
             if retrieval_variant:
-                asyncio.create_task(self.ab_testing_service.record_result(
-                    "rerank_vs_hybrid", retrieval_variant, "latency", latency_ms, request.session_id
-                ))
+                asyncio.create_task(
+                    self.ab_testing_service.record_result(
+                        "rerank_vs_hybrid", retrieval_variant, "latency", latency_ms, request.session_id
+                    )
+                )
 
         return response
 
     async def ask_stream(self, request: QueryRequest, request_id: str = "internal"):
         start_time = time.perf_counter()
-        
+
         system_prompt = RAG_SYSTEM_PROMPT
         if self.ab_testing_service and request.session_id:
             retrieval_variant = get_variant_value(request.session_id, "rerank_vs_hybrid")
             if retrieval_variant:
                 request.retrieval_strategy = retrieval_variant
-                
+
             prompt_variant = get_variant_value(request.session_id, "prompt_v3_test")
             if prompt_variant == "v3":
                 from app.prompts.v3.system import RAG_SYSTEM_PROMPT as V3_PROMPT
+
                 system_prompt = V3_PROMPT
 
         if self.cache_service and not request.messages:
@@ -259,7 +309,9 @@ class QueryService:
                 return
 
         try:
-            chunks, context_str, query_type, model_name, final_user_prompt = await self._prepare_rag_context(request, request_id)
+            chunks, context_str, query_type, model_name, final_user_prompt = await self._prepare_rag_context(
+                request, request_id
+            )
         except LowConfidenceError:
             yield "⚠️ Insufficient context — the retrieved documents do not appear relevant to your question. Please rephrase or check that the relevant documents have been ingested."
             return
@@ -267,31 +319,45 @@ class QueryService:
             yield "[ERROR] No relevant documents found for this query."
             return
 
-        sources_payload = [{"source": c.metadata.get("source", "Unknown"), "content": c.content, "score": c.score} for c in chunks]
+        sources_payload = [
+            {"source": c.metadata.get("source", "Unknown"), "content": c.content, "score": c.score} for c in chunks
+        ]
         yield f"[SOURCES] {json.dumps(sources_payload)}\n"
 
         accumulated = ""
-        async for token in self.llm_client.stream(prompt=final_user_prompt, system_prompt=system_prompt, model_name=model_name, history=request.messages):
+        async for token in self.llm_client.stream(
+            prompt=final_user_prompt, system_prompt=system_prompt, model_name=model_name, history=request.messages
+        ):
             accumulated += token
             yield token
 
         if accumulated and not request.messages:
             latency_ms = (time.perf_counter() - start_time) * 1000
-            
+
             # Cache the response
             if self.cache_service:
-                full_response = QueryResponse(answer=accumulated, sources=chunks, usage=TokenUsage(prompt_tokens=0, completion_tokens=0, total_tokens=0), latency_ms=latency_ms, request_id=request_id)
+                full_response = QueryResponse(
+                    answer=accumulated,
+                    sources=chunks,
+                    usage=TokenUsage(prompt_tokens=0, completion_tokens=0, total_tokens=0),
+                    latency_ms=latency_ms,
+                    request_id=request_id,
+                )
                 asyncio.create_task(self.cache_service.cache_response(request.query_text, full_response))
-            
+
             # Record A/B Testing latency
             if self.ab_testing_service and request.session_id:
                 prompt_variant = get_variant_value(request.session_id, "prompt_v3_test")
                 if prompt_variant:
-                    asyncio.create_task(self.ab_testing_service.record_result(
-                        "prompt_v3_test", prompt_variant, "latency", latency_ms, request.session_id
-                    ))
+                    asyncio.create_task(
+                        self.ab_testing_service.record_result(
+                            "prompt_v3_test", prompt_variant, "latency", latency_ms, request.session_id
+                        )
+                    )
                 retrieval_variant = get_variant_value(request.session_id, "rerank_vs_hybrid")
                 if retrieval_variant:
-                    asyncio.create_task(self.ab_testing_service.record_result(
-                        "rerank_vs_hybrid", retrieval_variant, "latency", latency_ms, request.session_id
-                    ))
+                    asyncio.create_task(
+                        self.ab_testing_service.record_result(
+                            "rerank_vs_hybrid", retrieval_variant, "latency", latency_ms, request.session_id
+                        )
+                    )

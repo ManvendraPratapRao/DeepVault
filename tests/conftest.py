@@ -103,3 +103,15 @@ def mock_vector_store(sample_chunks):
     # Let's not define retrieve output here, it's tied to retrievers,
     # but let's just make it an AsyncMock.
     return store
+
+
+# ---------------------------------------------------------------------------
+# Automatic Test Marking based on directory
+# ---------------------------------------------------------------------------
+def pytest_collection_modifyitems(items):
+    for item in items:
+        path = str(item.path)
+        if "tests\\unit" in path or "tests/unit" in path or "tests\\api" in path or "tests/api" in path:
+            item.add_marker(pytest.mark.unit)
+        elif "tests\\integration" in path or "tests/integration" in path:
+            item.add_marker(pytest.mark.integration)

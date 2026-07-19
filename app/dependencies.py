@@ -64,9 +64,7 @@ from app.services.query import QueryService
 # Singleton registry
 # ---------------------------------------------------------------------------
 
-_cache: dict[str, Any] = {
-    "executor": ThreadPoolExecutor(max_workers=10, thread_name_prefix="dv_worker")
-}
+_cache: dict[str, Any] = {"executor": ThreadPoolExecutor(max_workers=10, thread_name_prefix="dv_worker")}
 
 # Per-key locks prevent double-initialization under concurrent first requests
 _locks: dict[str, asyncio.Lock] = {}
@@ -374,9 +372,7 @@ async def get_ingestion_service(
     strategy parameters can differ per request.
     """
     return IngestionService(
-        chunker=await get_chunker(
-            strategy=strategy, chunk_size=chunk_size, chunk_overlap=chunk_overlap, **kwargs
-        ),
+        chunker=await get_chunker(strategy=strategy, chunk_size=chunk_size, chunk_overlap=chunk_overlap, **kwargs),
         embedder=await get_embedder(),
         doc_store=await get_doc_store(),
         vector_store=await get_vector_store(strategy=strategy),
@@ -432,7 +428,7 @@ async def initialize_all() -> None:
     await redis_cache.initialize()
 
     await get_qdrant_client()
-    await get_vector_store()    # Create default strategy collection if missing
+    await get_vector_store()  # Create default strategy collection if missing
 
     logger.info("DeepVault core ready.")
 

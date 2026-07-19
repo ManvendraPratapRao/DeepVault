@@ -86,20 +86,21 @@ a {
 }
 """
 
+
 def generate_pdf_from_markdown(run_id: str) -> Path:
     """Reads the generated Markdown report and converts it into a styled dark-mode PDF."""
     md_path = DOCS_BENCHMARKS_DIR / f"{run_id}.md"
     pdf_path = DOCS_BENCHMARKS_DIR / f"{run_id}.pdf"
-    
+
     if not md_path.exists():
         raise FileNotFoundError(f"Markdown report not found for run_id: {run_id}")
-        
+
     with open(md_path, encoding="utf-8") as f:
         md_content = f.read()
-        
+
     # Convert MD to HTML (with tables support)
-    html_body = markdown.markdown(md_content, extensions=['tables'])
-    
+    html_body = markdown.markdown(md_content, extensions=["tables"])
+
     # Wrap in HTML structure
     html_content = f"""
     <html>
@@ -116,23 +117,22 @@ def generate_pdf_from_markdown(run_id: str) -> Path:
     </body>
     </html>
     """
-    
+
     # Render PDF
     with open(pdf_path, "wb") as f:
-        pisa_status = pisa.CreatePDF(
-            html_content,
-            dest=f
-        )
-        
+        pisa_status = pisa.CreatePDF(html_content, dest=f)
+
     if pisa_status.err:
         logger.error(f"Failed to generate PDF for {run_id}: {pisa_status.err}")
         raise RuntimeError("PDF generation failed.")
-        
+
     logger.info(f"Generated PDF report at {pdf_path}")
     return pdf_path
 
+
 if __name__ == "__main__":
     import sys
+
     if len(sys.argv) > 1:
         run_id = sys.argv[1]
         try:
